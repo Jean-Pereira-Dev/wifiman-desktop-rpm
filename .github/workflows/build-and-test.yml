@@ -127,13 +127,21 @@ jobs:
           echo "Updated spec file:"
           grep -A 2 "^Version:" wifiman-desktop.spec
 
-      - name: Build and test RPM in Fedora ${{ matrix.fedora_version }} container
+      - name: Create build container
+        id: create_container
         run: |
           # Create a temporary container to build in
           CONTAINER_ID=$(docker run -d \
             -w /build \
             fedora:${{ matrix.fedora_version }} \
             tail -f /dev/null)
+          
+          echo "container_id=$CONTAINER_ID" >> $GITHUB_OUTPUT
+          echo "Created container: $CONTAINER_ID"
+
+      - name: Build and test RPM in Fedora ${{ matrix.fedora_version }} container
+        run: |
+          CONTAINER_ID="${{ steps.create_container.outputs.container_id }}"
           
           # Copy workspace files into container
           docker cp "${{ github.workspace }}/." "$CONTAINER_ID:/build/"
@@ -218,9 +226,21 @@ jobs:
           
           # Copy build results back to runner workspace
           docker cp "$CONTAINER_ID:/build/rpmbuild/" "${{ github.workspace }}/rpmbuild/" || true
+
+      - name: Cleanup build container
+        if: always() && steps.create_container.outputs.container_id
+        run: |
+          CONTAINER_ID="${{ steps.create_container.outputs.container_id }}"
+          echo "Removing container: $CONTAINER_ID"
+          docker rm -f "$CONTAINER_ID" || echo "Failed to remove container $CONTAINER_ID"
           
-          # Clean up container
-          docker rm -f "$CONTAINER_ID" || true
+          # Verify removal
+          if docker ps -a --filter "id=$CONTAINER_ID" --format "{{.ID}}" | grep -q "$CONTAINER_ID"; then
+            echo "WARNING: Container $CONTAINER_ID still exists after removal attempt"
+            exit 1
+          else
+            echo "✓ Container successfully removed"
+          fi
 
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@v4
