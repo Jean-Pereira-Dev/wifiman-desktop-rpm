@@ -1,0 +1,330 @@
+name: Build and Test RPM
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    # Check for new versions daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  WIFIMAN_DOWNLOAD_URL: https://desktop.wifiman.com
+  PACKAGE_NAME: wifiman-desktop
+
+jobs:
+  check-version:
+    name: Check for new WiFiman version
+    runs-on: [self-hosted, linux, x64]
+    container:
+      image: ubuntu:latest
+    outputs:
+      current_version: ${{ steps.check.outputs.current_version }}
+      latest_version: ${{ steps.check.outputs.latest_version }}
+      version_changed: ${{ steps.check.outputs.version_changed }}
+      release_exists: ${{ steps.check_release.outputs.result }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check current version in spec file
+        id: check
+        run: |
+          # Extract current version from spec file
+          CURRENT_VERSION=$(grep "^Version:" wifiman-desktop.spec | awk '{print $2}')
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version in spec: $CURRENT_VERSION"
+          
+          # Get latest version from manifest.json
+          MANIFEST_URL="https://desktop.wifiman.com/wifiman-desktop-linux-manifest.json"
+          LATEST_VERSION=$(curl -s "$MANIFEST_URL" | grep -oP '"version"\s*:\s*"\K[^"]+' | head -1)
+          
+          if [ -z "$LATEST_VERSION" ]; then
+            echo "Warning: Could not fetch latest version from manifest"
+            LATEST_VERSION="unknown"
+            VERSION_CHANGED="unknown"
+          else
+            echo "Latest version from manifest: $LATEST_VERSION"
+            
+            if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+              echo "New version available: $CURRENT_VERSION → $LATEST_VERSION"
+              VERSION_CHANGED="true"
+            else
+              echo "Already up to date!"
+              VERSION_CHANGED="false"
+            fi
+          fi
+          
+          echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "version_changed=$VERSION_CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Check if release already exists
+        id: check_release
+        if: steps.check.outputs.version_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.check.outputs.latest_version }}';
+            const tag = `v${version}`;
+            
+            try {
+              const release = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag
+              });
+              console.log(`Release ${tag} already exists`);
+              return 'true';
+            } catch (error) {
+              if (error.status === 404) {
+                console.log(`Release ${tag} does not exist yet`);
+                return 'false';
+              }
+              throw error;
+            }
+          result-encoding: string
+
+      - name: Create version check issue
+        if: steps.check.outputs.version_changed == 'true' || steps.check.outputs.version_changed == 'unknown'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const currentVersion = '${{ steps.check.outputs.current_version }}';
+            const latestVersion = '${{ steps.check.outputs.latest_version }}';
+            const title = latestVersion === 'unknown' 
+              ? `Version check needed for wifiman-desktop`
+              : `New wifiman-desktop version available: ${latestVersion}`;
+            const body = latestVersion === 'unknown'
+              ? `Current version ${currentVersion} files may not be available. Please check ${process.env.WIFIMAN_DOWNLOAD_URL} for the latest version.`
+              : `A new version of wifiman-desktop is available.\n\nCurrent: ${currentVersion}\nLatest: ${latestVersion}\n\nUpdate the spec file and rerun the workflow.`;
+            
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'version-update'
+            });
+            
+            const existingIssue = issues.data.find(issue => issue.title.includes('wifiman-desktop version'));
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['version-update', 'automated']
+              });
+            }
+
+  build-and-test:
+    name: Build & Test on Fedora ${{ matrix.fedora_version }}
+    runs-on: [self-hosted, linux, x64]
+    needs: check-version
+    # Only build if there's a new version AND no release exists yet, OR if manually triggered
+    if: (needs.check-version.outputs.version_changed == 'true' && needs.check-version.outputs.release_exists != 'true') || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora_version: [39, 40, 41, 42, 43]
+        arch: [x86_64]
+    
+    container:
+      image: fedora:${{ matrix.fedora_version }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          dnf install -y rpm-build rpmdevtools dnf-plugins-core
+          dnf builddep -y wifiman-desktop.spec
+
+      - name: Setup build directory
+        run: |
+          rpmdev-setuptree
+          
+      - name: Download source files
+        run: |
+          VERSION=$(grep "^Version:" wifiman-desktop.spec | awk '{print $2}')
+          spectool -g -R wifiman-desktop.spec
+          
+      - name: Copy patches to SOURCES
+        run: |
+          cp *.patch ~/rpmbuild/SOURCES/
+
+      - name: Build SRPM
+        run: |
+          rpmbuild -bs wifiman-desktop.spec
+
+      - name: Build RPM
+        run: |
+          rpmbuild -bb wifiman-desktop.spec
+
+      - name: List built packages
+        run: |
+          echo "=== Built on Fedora ${{ matrix.fedora_version }} ==="
+          echo "=== SRPMS ==="
+          ls -lh ~/rpmbuild/SRPMS/
+          echo "=== RPMS ==="
+          ls -lh ~/rpmbuild/RPMS/*/
+
+      - name: Test installation (same Fedora version)
+        run: |
+          echo "Testing installation on Fedora ${{ matrix.fedora_version }}"
+          
+          # Find the built RPM
+          RPM_FILE=$(find ~/rpmbuild/RPMS -name "wifiman-desktop-*.rpm" -type f | grep -v ".src.rpm" | head -1)
+          
+          if [ -z "$RPM_FILE" ]; then
+            echo "ERROR: No RPM file found"
+            exit 1
+          fi
+          
+          echo "Installing: $RPM_FILE"
+          
+          # Install the RPM
+          dnf install -y "$RPM_FILE"
+          
+          # Verify installation
+          echo "Verifying package installation..."
+          rpm -qi wifiman-desktop
+          
+          # Check if binary exists
+          if [ ! -f /opt/wifiman-desktop/wifiman-desktop ]; then
+            echo "ERROR: Binary not found at /opt/wifiman-desktop/wifiman-desktop"
+            exit 1
+          fi
+          
+          # Check if service file exists
+          if [ ! -f /usr/lib/systemd/system/wifiman-desktop.service ]; then
+            echo "ERROR: Service file not found"
+            exit 1
+          fi
+          
+          # Check if desktop file exists
+          if [ ! -f /usr/share/applications/wifiman-desktop.desktop ]; then
+            echo "ERROR: Desktop file not found"
+            exit 1
+          fi
+          
+          # Validate desktop file
+          desktop-file-validate /usr/share/applications/wifiman-desktop.desktop
+          
+          echo "✓ Installation test PASSED on Fedora ${{ matrix.fedora_version }}"
+
+      - name: Test uninstallation
+        run: |
+          echo "Testing uninstallation on Fedora ${{ matrix.fedora_version }}"
+          
+          # Uninstall
+          dnf remove -y wifiman-desktop
+          
+          # Verify removal
+          if rpm -q wifiman-desktop 2>/dev/null; then
+            echo "ERROR: Package still installed after removal"
+            exit 1
+          fi
+          
+          echo "✓ Uninstallation test PASSED on Fedora ${{ matrix.fedora_version }}"
+
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-fedora-${{ matrix.fedora_version }}-${{ matrix.arch }}
+          path: |
+            ~/rpmbuild/RPMS/*/*.rpm
+            ~/rpmbuild/SRPMS/*.rpm
+          retention-days: 30
+create-release:
+    name: Create GitHub Release
+    runs-on: [self-hosted, linux, x64]
+    needs: [check-version, build-and-test]
+    if: needs.check-version.outputs.version_changed == 'true' && needs.check-version.outputs.release_exists != 'true'
+    container:
+      image: ubuntu:latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create Release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const version = '${{ needs.check-version.outputs.latest_version }}';
+            const tag = `v${version}`;
+            
+            // Create release
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `wifiman-desktop ${version}`,
+              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 39, 40, 41, 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
+              draft: false,
+              prerelease: false
+            });
+            
+            console.log(`Created release: ${release.data.html_url}`);
+            
+            // Upload RPM artifacts to release
+            const artifactsDir = './artifacts';
+            const uploadAsset = async (filePath, fileName) => {
+              const data = fs.readFileSync(filePath);
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                name: fileName,
+                data: data
+              });
+              console.log(`Uploaded: ${fileName}`);
+            };
+            
+            // Find and upload all RPM files
+            const walk = (dir) => {
+              const files = fs.readdirSync(dir);
+              files.forEach(file => {
+                const filePath = path.join(dir, file);
+                const stat = fs.statSync(filePath);
+                if (stat.isDirectory()) {
+                  walk(filePath);
+                } else if (file.endsWith('.rpm')) {
+                  uploadAsset(filePath, file);
+                }
+              });
+            };
+            
+            walk(artifactsDir);
+
+  summary:
+    name: Build Summary
+    runs-on: [self-hosted, linux, x64]
+    container:
+      image: ubuntu:latest
+    needs: [check-version, build-and-test]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Build and Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version Information" >> $GITHUB_STEP_SUMMARY
+          echo "- Current version: ${{ needs.check-version.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Latest version: ${{ needs.check-version.outputs.latest_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Version changed: ${{ needs.check-version.outputs.version_changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Release exists: ${{ needs.check-version.outputs.release_exists}" >> $GITHUB_STEP_SUMMARY
+          echo "- Version changed: ${{ needs.check-version.outputs.version_changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build and Test Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Fedora 39, 40, 41, 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Each version was built and tested on its matching Fedora image." >> $GITHUB_STEP_SUMMARY
