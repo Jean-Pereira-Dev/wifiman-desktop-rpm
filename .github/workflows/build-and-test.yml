@@ -121,7 +121,7 @@ jobs:
           sed -i "s/^Release:.*/Release:  1/" wifiman-desktop.spec
           
           # Update changelog
-          TODAY=$(date +"%a %b %d %Y")
+          TODAY=$(LC_ALL=C date +"%a %b %d %Y")
           sed -i "/%changelog/a * $TODAY GitHub Actions <actions@github.com> $LATEST_VERSION-1\\n- Automated update to version $LATEST_VERSION\\n" wifiman-desktop.spec
           
           echo "Updated spec file:"

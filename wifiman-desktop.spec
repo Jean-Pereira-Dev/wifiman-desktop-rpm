@@ -14,10 +14,6 @@ URL:      https://wifiman.com/
 Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-amd64.deb
 %endif
 
-%ifarch aarch64
-Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-arm64.deb
-%endif
-
 Patch0:   0001-fix-desktop-exec.patch
 Patch1:   0002-fix-service-exec.patch
 
@@ -137,7 +133,7 @@ esac
 %attr(644, root, root) %{_unitdir}/%{name}.service
 
 %changelog
-* Wed Feb 12 2026 GitHub Actions <actions@github.com> 1.2.8-1
+* Thu Feb 12 2026 GitHub Actions <actions@github.com> 1.2.8-1
 - Update to version 1.2.8
 - Fix libXScrnSaver dependency
 
