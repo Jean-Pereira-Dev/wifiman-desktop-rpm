@@ -113,8 +113,8 @@ jobs:
     
     steps:
       - name: Install Node.js for GitHub Actions
-        run: |
-          dnf install -y nodejs npm
+        shell: bash
+        run: dnf install -y nodejs npm
       
       - name: Checkout repository
         uses: actions/checkout@v4
