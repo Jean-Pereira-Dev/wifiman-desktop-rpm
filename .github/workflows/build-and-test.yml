@@ -114,15 +114,17 @@ jobs:
 
       - name: Build and test RPM in Fedora ${{ matrix.fedora_version }} container
         run: |
-          # Debug: show workspace contents
-          echo "Workspace contents:"
-          ls -la "${{ github.workspace }}"
-          
-          docker run --rm \
-            -v "${{ github.workspace }}:/build:Z" \
+          # Create a temporary container to build in
+          CONTAINER_ID=$(docker run -d \
             -w /build \
             fedora:${{ matrix.fedora_version }} \
-            /bin/bash -c '
+            tail -f /dev/null)
+          
+          # Copy workspace files into container
+          docker cp "${{ github.workspace }}/." "$CONTAINER_ID:/build/"
+          
+          # Run the build script
+          docker exec "$CONTAINER_ID" /bin/bash -c '
               set -e
               
               echo "=== Setting up build environment ==="
@@ -198,6 +200,12 @@ jobs:
               cp ~/rpmbuild/SRPMS/* /build/rpmbuild/SRPMS/ 2>/dev/null || true
               cp -r ~/rpmbuild/RPMS/* /build/rpmbuild/RPMS/ 2>/dev/null || true
             '
+          
+          # Copy build results back to runner workspace
+          docker cp "$CONTAINER_ID:/build/rpmbuild/" "${{ github.workspace }}/rpmbuild/" || true
+          
+          # Clean up container
+          docker rm -f "$CONTAINER_ID" || true
 
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@v4
