@@ -112,6 +112,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Update spec file version
+        if: needs.check-version.outputs.version_changed == 'true'
+        run: |
+          LATEST_VERSION="${{ needs.check-version.outputs.latest_version }}"
+          echo "Updating spec file to version $LATEST_VERSION"
+          sed -i "s/^Version:.*/Version:  $LATEST_VERSION/" wifiman-desktop.spec
+          sed -i "s/^Release:.*/Release:  1/" wifiman-desktop.spec
+          
+          # Update changelog
+          TODAY=$(date +"%a %b %d %Y")
+          sed -i "/%changelog/a * $TODAY GitHub Actions <actions@github.com> $LATEST_VERSION-1\\n- Automated update to version $LATEST_VERSION\\n" wifiman-desktop.spec
+          
+          echo "Updated spec file:"
+          grep -A 2 "^Version:" wifiman-desktop.spec
+
       - name: Build and test RPM in Fedora ${{ matrix.fedora_version }} container
         run: |
           # Create a temporary container to build in

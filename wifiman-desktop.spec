@@ -3,8 +3,8 @@
 %define debug_package %{nil}
 
 Name:     wifiman-desktop
-Version:  0.3.0
-Release:  3
+Version:  1.2.8
+Release:  1
 Summary:  Discover devices and access Teleport VPNs
 License:  MIT
 Vendor:   Ubiquiti Inc. <monitoring@wifiman.com>
@@ -36,7 +36,7 @@ Requires: libuuid
 Requires: at-spi2-core
 Requires: xdg-utils
 Requires: libXtst
-Requires: %{_libdir}/libXss.so.1
+Requires: libXScrnSaver
 Requires: nss
 Requires: libnotify
 Requires: wireguard-tools
@@ -139,6 +139,10 @@ esac
 %attr(644, root, root) %{_unitdir}/%{name}.service
 
 %changelog
+* Wed Feb 12 2026 GitHub Actions <actions@github.com> 1.2.8-1
+- Update to version 1.2.8
+- Fix libXScrnSaver dependency
+
 * Thu Sep 05 2024 Arun Babu Neelicattu <arun.neelicattu@gmail.com> 0.3.0-3
 - spec: include all arch debs in srpm (arun.neelicattu@gmail.com)
 
