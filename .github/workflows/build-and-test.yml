@@ -245,7 +245,8 @@ jobs:
             ~/rpmbuild/RPMS/*/*.rpm
             ~/rpmbuild/SRPMS/*.rpm
           retention-days: 30
-create-release:
+
+  create-release:
     name: Create GitHub Release
     runs-on: [self-hosted, linux, x64]
     needs: [check-version, build-and-test]
