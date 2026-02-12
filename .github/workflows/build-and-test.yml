@@ -96,40 +96,6 @@ jobs:
             }
           result-encoding: string
 
-      - name: Create version check issue
-        if: steps.check.outputs.version_changed == 'true' || steps.check.outputs.version_changed == 'unknown'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const currentVersion = '${{ steps.check.outputs.current_version }}';
-            const latestVersion = '${{ steps.check.outputs.latest_version }}';
-            const title = latestVersion === 'unknown' 
-              ? `Version check needed for wifiman-desktop`
-              : `New wifiman-desktop version available: ${latestVersion}`;
-            const body = latestVersion === 'unknown'
-              ? `Current version ${currentVersion} files may not be available. Please check ${process.env.WIFIMAN_DOWNLOAD_URL} for the latest version.`
-              : `A new version of wifiman-desktop is available.\n\nCurrent: ${currentVersion}\nLatest: ${latestVersion}\n\nUpdate the spec file and rerun the workflow.`;
-            
-            // Check if issue already exists
-            const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'version-update'
-            });
-            
-            const existingIssue = issues.data.find(issue => issue.title.includes('wifiman-desktop version'));
-            
-            if (!existingIssue) {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: title,
-                body: body,
-                labels: ['version-update', 'automated']
-              });
-            }
-
   build-and-test:
     name: Build & Test on Fedora ${{ matrix.fedora_version }}
     runs-on: [self-hosted, linux, x64]
