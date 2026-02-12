@@ -114,8 +114,12 @@ jobs:
 
       - name: Build and test RPM in Fedora ${{ matrix.fedora_version }} container
         run: |
+          # Debug: show workspace contents
+          echo "Workspace contents:"
+          ls -la "${{ github.workspace }}"
+          
           docker run --rm \
-            -v "${{ github.workspace }}:/build" \
+            -v "${{ github.workspace }}:/build:Z" \
             -w /build \
             fedora:${{ matrix.fedora_version }} \
             /bin/bash -c '
