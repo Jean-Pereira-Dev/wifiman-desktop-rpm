@@ -11,13 +11,13 @@ Vendor:   Ubiquiti Inc. <monitoring@wifiman.com>
 URL:      https://wifiman.com/
 
 %ifarch x86_64
-Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-linux-amd64.deb
-Source1:  https://desktop.wifiman.com/wifiman-desktop-%{version}-linux-arm64.deb
+Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-amd64.deb
+Source1:  https://desktop.wifiman.com/wifiman-desktop-%{version}-arm64.deb
 %endif
 
 %ifarch aarch64
-Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-linux-arm64.deb
-Source1:  https://desktop.wifiman.com/wifiman-desktop-%{version}-linux-amd64.deb
+Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-arm64.deb
+Source1:  https://desktop.wifiman.com/wifiman-desktop-%{version}-amd64.deb
 %endif
 
 Patch0:   0001-fix-desktop-exec.patch
