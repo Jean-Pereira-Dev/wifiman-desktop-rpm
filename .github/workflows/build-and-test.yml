@@ -108,107 +108,92 @@ jobs:
         fedora_version: [39, 40, 41, 42, 43]
         arch: [x86_64]
     
-    container:
-      image: fedora:${{ matrix.fedora_version }}
-    
     steps:
-      - name: Install Node.js for GitHub Actions
-        shell: bash
-        run: dnf install -y nodejs npm
-      
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Build and test RPM in Fedora ${{ matrix.fedora_version }} container
         run: |
-          dnf install -y rpm-build rpmdevtools dnf-plugins-core
-          dnf builddep -y wifiman-desktop.spec
-
-      - name: Setup build directory
-        run: |
-          rpmdev-setuptree
-
-      - name: Download source files
-        run: |
-          spectool -g -R wifiman-desktop.spec
-
-      - name: Copy patches to SOURCES
-        run: |
-          cp *.patch ~/rpmbuild/SOURCES/
-
-      - name: Build SRPM
-        run: |
-          rpmbuild -bs wifiman-desktop.spec
-
-      - name: Build RPM
-        run: |
-          rpmbuild -bb wifiman-desktop.spec
-
-      - name: List built packages
-        run: |
-          echo "=== Built on Fedora ${{ matrix.fedora_version }} ==="
-          echo "=== SRPMS ==="
-          ls -lh ~/rpmbuild/SRPMS/
-          echo "=== RPMS ==="
-          ls -lh ~/rpmbuild/RPMS/*/
-
-      - name: Test installation
-        run: |
-          echo "Testing installation on Fedora ${{ matrix.fedora_version }}"
-          
-          # Find the built RPM
-          RPM_FILE=$(find ~/rpmbuild/RPMS -name "wifiman-desktop-*.rpm" -type f ! -name "*.src.rpm" | head -1)
-          
-          if [ -z "$RPM_FILE" ]; then
-            echo "ERROR: No RPM file found"
-            exit 1
-          fi
-          
-          echo "Installing: $RPM_FILE"
-          dnf install -y "$RPM_FILE"
-          
-          # Verify installation
-          echo "Verifying package installation..."
-          rpm -qi wifiman-desktop
-          
-          # Check if binary exists
-          if [ ! -f /opt/wifiman-desktop/wifiman-desktop ]; then
-            echo "ERROR: Binary not found at /opt/wifiman-desktop/wifiman-desktop"
-            exit 1
-          fi
-          
-          # Check if service file exists
-          if [ ! -f /usr/lib/systemd/system/wifiman-desktop.service ]; then
-            echo "ERROR: Service file not found"
-            exit 1
-          fi
-          
-          # Check if desktop file exists
-          if [ ! -f /usr/share/applications/wifiman-desktop.desktop ]; then
-            echo "ERROR: Desktop file not found"
-            exit 1
-          fi
-          
-          # Validate desktop file
-          dnf install -y desktop-file-utils
-          desktop-file-validate /usr/share/applications/wifiman-desktop.desktop
-          
-          echo "✓ Installation test PASSED on Fedora ${{ matrix.fedora_version }}"
-
-      - name: Test uninstallation
-        run: |
-          echo "Testing uninstallation on Fedora ${{ matrix.fedora_version }}"
-          
-          # Uninstall
-          dnf remove -y wifiman-desktop
-          
-          # Verify removal
-          if rpm -q wifiman-desktop &>/dev/null; then
-            echo "ERROR: Package still installed after removal"
-            exit 1
-          fi
-          
-          echo "✓ Uninstallation test PASSED on Fedora ${{ matrix.fedora_version }}"
+          docker run --rm \
+            -v "${{ github.workspace }}:/build" \
+            -w /build \
+            fedora:${{ matrix.fedora_version }} \
+            /bin/bash -c '
+              set -e
+              
+              echo "=== Setting up build environment ==="
+              dnf install -y rpm-build rpmdevtools dnf-plugins-core
+              dnf builddep -y wifiman-desktop.spec
+              
+              echo "=== Setting up build directory ==="
+              rpmdev-setuptree
+              
+              echo "=== Downloading source files ==="
+              spectool -g -R wifiman-desktop.spec
+              
+              echo "=== Copying patches ==="
+              cp *.patch ~/rpmbuild/SOURCES/
+              
+              echo "=== Building SRPM ==="
+              rpmbuild -bs wifiman-desktop.spec
+              
+              echo "=== Building RPM ==="
+              rpmbuild -bb wifiman-desktop.spec
+              
+              echo "=== Build complete - listing artifacts ==="
+              echo "SRPMS:"
+              ls -lh ~/rpmbuild/SRPMS/
+              echo "RPMS:"
+              ls -lh ~/rpmbuild/RPMS/*/
+              
+              echo "=== Testing installation ==="
+              RPM_FILE=$(find ~/rpmbuild/RPMS -name "wifiman-desktop-*.rpm" -type f ! -name "*.src.rpm" | head -1)
+              if [ -z "$RPM_FILE" ]; then
+                echo "ERROR: No RPM file found"
+                exit 1
+              fi
+              
+              echo "Installing: $RPM_FILE"
+              dnf install -y "$RPM_FILE"
+              
+              echo "Verifying package installation..."
+              rpm -qi wifiman-desktop
+              
+              if [ ! -f /opt/wifiman-desktop/wifiman-desktop ]; then
+                echo "ERROR: Binary not found"
+                exit 1
+              fi
+              
+              if [ ! -f /usr/lib/systemd/system/wifiman-desktop.service ]; then
+                echo "ERROR: Service file not found"
+                exit 1
+              fi
+              
+              if [ ! -f /usr/share/applications/wifiman-desktop.desktop ]; then
+                echo "ERROR: Desktop file not found"
+                exit 1
+              fi
+              
+              dnf install -y desktop-file-utils
+              desktop-file-validate /usr/share/applications/wifiman-desktop.desktop
+              
+              echo "✓ Installation test PASSED"
+              
+              echo "=== Testing uninstallation ==="
+              dnf remove -y wifiman-desktop
+              
+              if rpm -q wifiman-desktop &>/dev/null; then
+                echo "ERROR: Package still installed after removal"
+                exit 1
+              fi
+              
+              echo "✓ Uninstallation test PASSED"
+              
+              echo "=== Preparing artifacts ==="
+              mkdir -p /build/rpmbuild/{SRPMS,RPMS}
+              cp ~/rpmbuild/SRPMS/* /build/rpmbuild/SRPMS/ 2>/dev/null || true
+              cp -r ~/rpmbuild/RPMS/* /build/rpmbuild/RPMS/ 2>/dev/null || true
+            '
 
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@v4
