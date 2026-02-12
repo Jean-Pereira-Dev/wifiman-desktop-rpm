@@ -14,6 +14,11 @@ env:
   WIFIMAN_DOWNLOAD_URL: https://desktop.wifiman.com
   PACKAGE_NAME: wifiman-desktop
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
 jobs:
   check-version:
     name: Check for new WiFiman version
