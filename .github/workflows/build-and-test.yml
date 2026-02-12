@@ -18,8 +18,6 @@ jobs:
   check-version:
     name: Check for new WiFiman version
     runs-on: [self-hosted, linux, x64]
-    container:
-      image: ubuntu:latest
     outputs:
       current_version: ${{ steps.check.outputs.current_version }}
       latest_version: ${{ steps.check.outputs.latest_version }}
@@ -31,8 +29,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get update
-          apt-get install -y curl grep
+          # Dependencies should already be available on the runner
+          # curl and grep are standard tools
+          which curl || echo "curl not found"
+          which grep || echo "grep not found"
 
       - name: Check current version in spec file
         id: check
@@ -251,8 +251,6 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     needs: [check-version, build-and-test]
     if: needs.check-version.outputs.version_changed == 'true' && needs.check-version.outputs.release_exists != 'true'
-    container:
-      image: ubuntu:latest
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -311,8 +309,6 @@ jobs:
   summary:
     name: Build Summary
     runs-on: [self-hosted, linux, x64]
-    container:
-      image: ubuntu:latest
     needs: [check-version, build-and-test]
     if: always()
     steps:
