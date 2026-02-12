@@ -29,6 +29,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl grep
+
       - name: Check current version in spec file
         id: check
         run: |
@@ -277,33 +282,30 @@ create-release:
             
             // Upload RPM artifacts to release
             const artifactsDir = './artifacts';
-            const uploadAsset = async (filePath, fileName) => {
-              const data = fs.readFileSync(filePath);
-              await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: release.data.id,
-                name: fileName,
-                data: data
-              });
-              console.log(`Uploaded: ${fileName}`);
-            };
             
             // Find and upload all RPM files
-            const walk = (dir) => {
+            const walk = async (dir) => {
               const files = fs.readdirSync(dir);
-              files.forEach(file => {
+              for (const file of files) {
                 const filePath = path.join(dir, file);
                 const stat = fs.statSync(filePath);
                 if (stat.isDirectory()) {
-                  walk(filePath);
+                  await walk(filePath);
                 } else if (file.endsWith('.rpm')) {
-                  uploadAsset(filePath, file);
+                  const data = fs.readFileSync(filePath);
+                  await github.rest.repos.uploadReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    release_id: release.data.id,
+                    name: file,
+                    data: data
+                  });
+                  console.log(`Uploaded: ${file}`);
                 }
-              });
+              }
             };
             
-            walk(artifactsDir);
+            await walk(artifactsDir);
 
   summary:
     name: Build Summary
@@ -321,9 +323,12 @@ create-release:
           echo "- Current version: ${{ needs.check-version.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- Latest version: ${{ needs.check-version.outputs.latest_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- Version changed: ${{ needs.check-version.outputs.version_changed }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Release exists: ${{ needs.check-version.outputs.release_exists}" >> $GITHUB_STEP_SUMMARY
-          echo "- Version changed: ${{ needs.check-version.outputs.version_changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Release exists: ${{ needs.check-version.outputs.release_exists }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build and Test Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Fedora 39, 40, 41, 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Each version was built and tested on its matching Fedora image." >> $GITHUB_STEP_SUMMARY
           echo "### Build and Test Status" >> $GITHUB_STEP_SUMMARY
           echo "- Fedora 39, 40, 41, 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
