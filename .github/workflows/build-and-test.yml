@@ -276,7 +276,7 @@ jobs:
               repo: context.repo.repo,
               tag_name: tag,
               name: `wifiman-desktop ${version}`,
-              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 39, 40, 41, 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
+              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 41, 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
               draft: false,
               prerelease: false
             });
