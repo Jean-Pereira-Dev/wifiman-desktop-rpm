@@ -15,7 +15,7 @@ env:
   PACKAGE_NAME: wifiman-desktop
 
 permissions:
-  contents: read
+  contents: write  # Required to create releases and upload assets
   issues: write
   pull-requests: read
 
