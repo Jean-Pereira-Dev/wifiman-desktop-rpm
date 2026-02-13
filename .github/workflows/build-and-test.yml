@@ -116,7 +116,7 @@ jobs:
               repo: context.repo.repo,
               tag_name: tag,
               name: `wifiman-desktop ${version}`,
-              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 41, 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
+              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Copr Repository\nAlternatively, install from Copr:\n\`\`\`bash\ndnf copr enable jeanpereira/wifiman\ndnf install wifiman-desktop\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
               draft: false,
               prerelease: false
             });
@@ -133,7 +133,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fedora_version: [41, 42, 43]
+        fedora_version: [42, 43]
         arch: [x86_64]
     
     steps:
@@ -267,7 +267,7 @@ jobs:
             echo "✓ Container successfully removed"
           fi
 
-      - name: Upload RPMs to Release
+      - name: Upload RPMs to GitHub Release
         if: needs.check-version.outputs.release_exists != 'true'
         uses: actions/github-script@v7
         with:
@@ -301,6 +301,43 @@ jobs:
             
             await walk(uploadDir);
 
+      - name: Upload to Copr
+        if: needs.check-version.outputs.release_exists != 'true' && matrix.fedora_version == 42
+        run: |
+          # Install copr-cli if not present
+          if ! command -v copr-cli &> /dev/null; then
+            dnf install -y copr-cli
+          fi
+          
+          # Find SRPM
+          SRPM=$(find rpmbuild/SRPMS -name "*.src.rpm" -type f | head -1)
+          
+          if [ -z "$SRPM" ]; then
+            echo "ERROR: No SRPM found"
+            exit 1
+          fi
+          
+          echo "Uploading $SRPM to Copr: jeanpereira/wifiman"
+          
+          # Configure copr-cli with API token
+          mkdir -p ~/.config
+          cat > ~/.config/copr << EOF
+          [copr-cli]
+          username = jeanpereira
+          copr_url = https://copr.fedorainfracloud.org
+          EOF
+          
+          # Upload SRPM to Copr (builds for all enabled chroots)
+          if [ -n "${{ secrets.COPR_API_TOKEN }}" ]; then
+            echo "login = ${{ secrets.COPR_API_TOKEN }}" >> ~/.config/copr
+            echo "token = ${{ secrets.COPR_API_TOKEN }}" >> ~/.config/copr
+            copr-cli build jeanpereira/wifiman "$SRPM"
+            echo "✓ SRPM uploaded to Copr successfully"
+          else
+            echo "WARNING: COPR_API_TOKEN not configured - skipping Copr upload"
+            echo "To enable Copr uploads, add COPR_API_TOKEN to repository secrets"
+          fi
+
   summary:
     name: Build Summary
     runs-on: [self-hosted, linux, x64]
@@ -318,6 +355,6 @@ jobs:
           echo "- Release exists: ${{ needs.check-version.outputs.release_exists }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build and Test Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Fedora 41, 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Fedora 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Each version was built and tested on its matching Fedora image." >> $GITHUB_STEP_SUMMARY
