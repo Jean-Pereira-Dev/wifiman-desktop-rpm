@@ -302,7 +302,7 @@ jobs:
             await walk(uploadDir);
 
       - name: Upload to Copr
-        if: needs.check-version.outputs.release_exists != 'true' && matrix.fedora_version == 42
+        if: matrix.fedora_version == 42
         env:
           COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
           COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
@@ -315,9 +315,11 @@ jobs:
             exit 0
           fi
           
-          # Install copr-cli if not present
+          # Install copr-cli if not present (pip install is OS-agnostic)
           if ! command -v copr-cli &> /dev/null; then
-            sudo dnf install -y copr-cli 2>/dev/null || dnf install -y copr-cli
+            echo "Installing copr-cli..."
+            pip3 install --user copr-cli || python3 -m pip install --user copr-cli
+            export PATH="$HOME/.local/bin:$PATH"
           fi
           
           # Find SRPM
