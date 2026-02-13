@@ -243,8 +243,8 @@ jobs:
         with:
           name: rpm-fedora-${{ matrix.fedora_version }}-${{ matrix.arch }}
           path: |
-            ~/rpmbuild/RPMS/*/*.rpm
-            ~/rpmbuild/SRPMS/*.rpm
+            rpmbuild/RPMS/*/*.rpm
+            rpmbuild/SRPMS/*.rpm
           retention-days: 30
 
   create-release:
