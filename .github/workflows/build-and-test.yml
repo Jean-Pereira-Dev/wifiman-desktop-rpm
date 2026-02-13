@@ -95,11 +95,40 @@ jobs:
             }
           result-encoding: string
 
+  create-release:
+    name: Create GitHub Release
+    runs-on: [self-hosted, linux, x64]
+    needs: check-version
+    if: needs.check-version.outputs.release_exists != 'true'
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - name: Create Release
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.check-version.outputs.latest_version }}';
+            const tag = `v${version}`;
+            
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `wifiman-desktop ${version}`,
+              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 41, 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
+              draft: false,
+              prerelease: false
+            });
+            
+            console.log(`Created release: ${release.data.html_url}`);
+            core.setOutput('release_id', release.data.id);
+            return release.data.id;
+
   build-and-test:
     name: Build & Test on Fedora ${{ matrix.fedora_version }}
     runs-on: [self-hosted, linux, x64]
-    needs: check-version
-    # Build if no release exists for current version OR if version changed OR if manually triggered
+    needs: [check-version, create-release]
     if: needs.check-version.outputs.release_exists != 'true' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
@@ -238,52 +267,17 @@ jobs:
             echo "✓ Container successfully removed"
           fi
 
-      - name: Upload RPM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpm-fedora-${{ matrix.fedora_version }}-${{ matrix.arch }}
-          path: |
-            rpmbuild/RPMS/*/*.rpm
-            rpmbuild/SRPMS/*.rpm
-          retention-days: 30
-
-  create-release:
-    name: Create GitHub Release
-    runs-on: [self-hosted, linux, x64]
-    needs: [check-version, build-and-test]
-    if: needs.check-version.outputs.release_exists != 'true'
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Create Release
+      - name: Upload RPMs to Release
+        if: needs.check-version.outputs.release_exists != 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const version = '${{ needs.check-version.outputs.latest_version }}';
-            const tag = `v${version}`;
-            
-            // Create release
-            const release = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tag,
-              name: `wifiman-desktop ${version}`,
-              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 41, 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
-              draft: false,
-              prerelease: false
-            });
-            
-            console.log(`Created release: ${release.data.html_url}`);
-            
-            // Upload RPM artifacts to release
-            const artifactsDir = './artifacts';
+            const releaseId = '${{ needs.create-release.outputs.release_id }}';
             
             // Find and upload all RPM files
+            const uploadDir = 'rpmbuild';
             const walk = async (dir) => {
               const files = fs.readdirSync(dir);
               for (const file of files) {
@@ -296,7 +290,7 @@ jobs:
                   await github.rest.repos.uploadReleaseAsset({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
-                    release_id: release.data.id,
+                    release_id: releaseId,
                     name: file,
                     data: data
                   });
@@ -305,7 +299,7 @@ jobs:
               }
             };
             
-            await walk(artifactsDir);
+            await walk(uploadDir);
 
   summary:
     name: Build Summary
