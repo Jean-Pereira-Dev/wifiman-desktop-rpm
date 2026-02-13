@@ -26,15 +26,13 @@ dnf install wifiman-desktop
 
 ### From GitHub Releases
 
-Download the RPM for your Fedora version from the [releases page](https://github.com/Jean-Pereira-Dev/wifiman-desktop-rpm/releases):
+Download the Fedora 43 RPM from the [releases page](https://github.com/Jean-Pereira-Dev/wifiman-desktop-rpm/releases):
 
 ```sh
-# For Fedora 42
-dnf install wifiman-desktop-1.2.8-1.fc42.x86_64.rpm
-
-# For Fedora 43
 dnf install wifiman-desktop-1.2.8-1.fc43.x86_64.rpm
 ```
+
+> **Note:** GitHub releases contain only Fedora 43 RPMs. For other Fedora versions, use the Copr repository above.
 
 ## Usage
 
