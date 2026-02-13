@@ -159,9 +159,6 @@ jobs:
               echo "=== Downloading source files ==="
               spectool -g -R wifiman-desktop.spec
               
-              echo "=== Copying patches ==="
-              cp *.patch ~/rpmbuild/SOURCES/
-              
               echo "=== Building SRPM ==="
               rpmbuild -bs wifiman-desktop.spec
               
@@ -187,8 +184,8 @@ jobs:
               echo "Verifying package installation..."
               rpm -qi wifiman-desktop
               
-              if [ ! -f /opt/wifiman-desktop/wifiman-desktop ]; then
-                echo "ERROR: Binary not found"
+              if [ ! -f /usr/bin/wifiman-desktop ]; then
+                echo "ERROR: Binary not found in /usr/bin"
                 exit 1
               fi
               
@@ -327,10 +324,6 @@ jobs:
           echo "- Release exists: ${{ needs.check-version.outputs.release_exists }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build and Test Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Fedora 39, 40, 41, 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Each version was built and tested on its matching Fedora image." >> $GITHUB_STEP_SUMMARY
-          echo "### Build and Test Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Fedora 39, 40, 41, 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Fedora 41, 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Each version was built and tested on its matching Fedora image." >> $GITHUB_STEP_SUMMARY
