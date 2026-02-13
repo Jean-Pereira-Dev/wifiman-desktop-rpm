@@ -72,6 +72,7 @@ desktop-file-validate %{buildroot}/%{_datadir}/applications/%{name}.desktop
 
 %post
 %systemd_post %{name}.service
+/usr/bin/systemctl enable --now %{name}.service >/dev/null 2>&1 || :
 /bin/touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 update-mime-database %{_datadir}/mime &>/dev/null || :
 update-desktop-database %{_datadir}/applications &>/dev/null || :
