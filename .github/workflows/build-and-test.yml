@@ -116,7 +116,7 @@ jobs:
               repo: context.repo.repo,
               tag_name: tag,
               name: `wifiman-desktop ${version}`,
-              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora 42, 43\n\n### Installation\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Copr Repository\nAlternatively, install from Copr:\n\`\`\`bash\ndnf copr enable jeanpereira/wifiman\ndnf install wifiman-desktop\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
+              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora (via Copr)\n\n### Installation (Recommended)\nInstall from Copr repository (supports all Fedora versions):\n\`\`\`bash\ndnf copr enable jeanpereira/wifiman\ndnf install wifiman-desktop\n\`\`\`\n\n### Direct Download\nAlternatively, download the Fedora 43 RPM:\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
               draft: false,
               prerelease: false
             });
@@ -133,7 +133,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fedora_version: [42, 43]
+        fedora_version: [43]
         arch: [x86_64]
     
     steps:
@@ -302,7 +302,7 @@ jobs:
             await walk(uploadDir);
 
       - name: Upload to Copr
-        if: matrix.fedora_version == 42
+        if: matrix.fedora_version == 43
         env:
           COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
           COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
@@ -368,6 +368,7 @@ jobs:
           echo "- Release exists: ${{ needs.check-version.outputs.release_exists }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build and Test Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Fedora 42, 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Fedora 43: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Copr: Builds for all enabled Fedora versions" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Each version was built and tested on its matching Fedora image." >> $GITHUB_STEP_SUMMARY
