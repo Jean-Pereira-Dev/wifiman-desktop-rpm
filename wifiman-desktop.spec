@@ -14,9 +14,6 @@ URL:      https://wifiman.com/
 Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-amd64.deb
 %endif
 
-Patch0:   0001-fix-desktop-exec.patch
-Patch1:   0002-fix-service-exec.patch
-
 BuildRequires: binutils
 BuildRequires: desktop-file-utils
 BuildRequires: gzip
@@ -52,39 +49,34 @@ With this free-to-use (and ad-free) app you can:
 %setup -cT
 ar x %{SOURCE0}
 tar xf data.tar.gz
-%patch -P 0 -p0
-%patch -P 1 -p0
 
 %build
 
 %install
-install -D opt/WiFiman\ Desktop/service/wifiman-desktop.service %{buildroot}/%{_unitdir}/%{name}.service
+# Install binary
+install -D -m 755 usr/bin/wifiman-desktop %{buildroot}%{_bindir}/wifiman-desktop
 
-rm -f opt/WiFiman\ Desktop/service/wifiman-desktop.service
-rm -rf opt/WiFiman\ Desktop/scripts
+# Install lib directory
+mkdir -p %{buildroot}%{_libdir}/wifiman-desktop
+cp -a usr/lib/wifiman-desktop/* %{buildroot}%{_libdir}/wifiman-desktop/
 
-install -d %{buildroot}/opt
-cp -R opt/WiFiman\ Desktop %{buildroot}/opt/wifiman-desktop
+# Install systemd service
+install -D -m 644 usr/lib/wifiman-desktop/wifiman-desktop.service %{buildroot}%{_unitdir}/%{name}.service
 
-rm -rf usr/share/doc
-cp -R usr/share %{buildroot}/%{_datarootdir}
-
-# this should really be using user runtime dir, but this seems to be hardcoded in the electron app
-install -d -m 777 %{buildroot}/opt/wifiman-desktop/tmp
+# Install desktop file and icons
+mkdir -p %{buildroot}%{_datadir}
+cp -a usr/share/* %{buildroot}%{_datadir}/
 
 %check
 desktop-file-validate %{buildroot}/%{_datadir}/applications/%{name}.desktop
 
 %post
 %systemd_post %{name}.service
-%{__ln_s} -f /opt/wifiman-desktop/service/.env %{_sysconfdir}/%{name}
-%{__ln_s} -f /opt/wifiman-desktop/wifiman-desktop %{_bindir}/wifiman-desktop
 /bin/touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
-update-mime-database /usr/share/mime &>/dev/null
-update-desktop-database /usr/share/applications &>/dev/null
+update-mime-database %{_datadir}/mime &>/dev/null || :
+update-desktop-database %{_datadir}/applications &>/dev/null || :
 
 %preun
-pkill -SIGTERM -f /opt/wifiman-desktop/wifiman-desktop || :
 %systemd_preun %{name}.service
 
 %postun
@@ -95,47 +87,22 @@ if [ $1 -eq 0 ] ; then
     /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 fi
 
-case "$1" in
-  0) # last one out put out the lights
-    rm -f %{_sysconfdir}/%{name}
-    rm -f %{_bindir}/wifiman-desktop
-    rm -rf /opt/wifiman-desktop
-  ;;
-esac
-
 %posttrans
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %files
 %defattr(-,root,root,-)
-%dir %attr(777, root, root) /opt/wifiman-desktop/tmp
-%attr(644, root, root) /opt/wifiman-desktop/assets/devices/*.png
-%attr(644, root, root) /opt/wifiman-desktop/assets/uidb.json
-%attr(644, root, root) /opt/wifiman-desktop/locales/*.pak
-%attr(644, root, root) /opt/wifiman-desktop/resources/app.asar
-%attr(644, root, root) /opt/wifiman-desktop/service/.env
-%attr(755, root, root) /opt/wifiman-desktop/service/wg
-%attr(755, root, root) /opt/wifiman-desktop/service/wg-quick
-%attr(755, root, root) /opt/wifiman-desktop/service/wifiman-desktopd
-%attr(755, root, root) /opt/wifiman-desktop/service/wireguard-go
-%attr(755, root, root) /opt/wifiman-desktop/chrome-sandbox
-%attr(755, root, root) /opt/wifiman-desktop/chrome_crashpad_handler
-%attr(644, root, root) /opt/wifiman-desktop/*.dat
-%attr(755, root, root) /opt/wifiman-desktop/lib*.so
-%attr(755, root, root) /opt/wifiman-desktop/lib*.so.*
-%attr(644, root, root) /opt/wifiman-desktop/LICENSE*
-%attr(644, root, root) /opt/wifiman-desktop/*.bin
-%attr(644, root, root) /opt/wifiman-desktop/*.pak
-%attr(644, root, root) /opt/wifiman-desktop/*.json
-%attr(755, root, root) /opt/wifiman-desktop/wifiman-desktop
-%attr(644, root, root) %{_datadir}/applications/%{name}.desktop
-%attr(644, root, root) %{_datadir}/icons/hicolor/*/apps/%{name}.png
-%attr(644, root, root) %{_unitdir}/%{name}.service
+%{_bindir}/wifiman-desktop
+%{_libdir}/wifiman-desktop/
+%{_datadir}/applications/%{name}.desktop
+%{_datadir}/icons/hicolor/*/apps/%{name}.png
+%{_unitdir}/%{name}.service
 
 %changelog
 * Thu Feb 12 2026 GitHub Actions <actions@github.com> 1.2.8-1
-- Update to version 1.2.8
-- Fix libXScrnSaver dependency
+- Update to version 1.2.8 with new FHS-compliant structure
+- Remove obsolete patches (package now uses standard paths)
+- Binary now in /usr/bin, libraries in /usr/lib64/wifiman-desktop
 
 * Thu Sep 05 2024 Arun Babu Neelicattu <arun.neelicattu@gmail.com> 0.3.0-3
 - spec: include all arch debs in srpm (arun.neelicattu@gmail.com)
