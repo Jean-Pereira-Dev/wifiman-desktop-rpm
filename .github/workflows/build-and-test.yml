@@ -111,19 +111,33 @@ jobs:
             const version = '${{ needs.check-version.outputs.latest_version }}';
             const tag = `v${version}`;
             
-            const release = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tag,
-              name: `wifiman-desktop ${version}`,
-              body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora (via Copr)\n\n### Installation (Recommended)\nInstall from Copr repository (supports all Fedora versions):\n\`\`\`bash\ndnf copr enable jeanpereira/wifiman\ndnf install wifiman-desktop\n\`\`\`\n\n### Direct Download\nAlternatively, download the Fedora 43 RPM:\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
-              draft: false,
-              prerelease: false
-            });
-            
-            console.log(`Created release: ${release.data.html_url}`);
-            core.setOutput('release_id', release.data.id);
-            return release.data.id;
+            try {
+              const release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: `wifiman-desktop ${version}`,
+                body: `## wifiman-desktop v${version}\n\nRPM packages for Fedora (via Copr)\n\n### Installation (Recommended)\nInstall from Copr repository (supports all Fedora versions):\n\`\`\`bash\ndnf copr enable jeanpereira/wifiman\ndnf install wifiman-desktop\n\`\`\`\n\n### Direct Download\nAlternatively, download the Fedora 43 RPM:\n\`\`\`bash\ndnf install wifiman-desktop-${version}-*.rpm\n\`\`\`\n\n### Source\nOfficial release: https://desktop.wifiman.com/`,
+                draft: false,
+                prerelease: false
+              });
+              
+              console.log(`Created release: ${release.data.html_url}`);
+              core.setOutput('release_id', release.data.id);
+              return release.data.id;
+            } catch (error) {
+              if (error.status === 422) {
+                const existing = await github.rest.repos.getReleaseByTag({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag: tag
+                });
+                console.log(`Release already exists: ${existing.data.html_url}`);
+                core.setOutput('release_id', existing.data.id);
+                return existing.data.id;
+              }
+              throw error;
+            }
 
   build-and-test:
     name: Build & Test on Fedora ${{ matrix.fedora_version }}
