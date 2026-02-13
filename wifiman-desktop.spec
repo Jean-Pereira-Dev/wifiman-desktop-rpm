@@ -4,7 +4,7 @@
 
 Name:     wifiman-desktop
 Version:  1.2.8
-Release:  1
+Release:  1%{?dist}
 Summary:  Discover devices and access Teleport VPNs
 License:  MIT
 Vendor:   Ubiquiti Inc. <monitoring@wifiman.com>
