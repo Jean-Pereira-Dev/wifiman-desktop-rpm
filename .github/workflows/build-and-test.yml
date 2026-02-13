@@ -303,10 +303,21 @@ jobs:
 
       - name: Upload to Copr
         if: needs.check-version.outputs.release_exists != 'true' && matrix.fedora_version == 42
+        env:
+          COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
+          COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
         run: |
+          # Skip if credentials not configured
+          if [ -z "$COPR_LOGIN" ] || [ -z "$COPR_TOKEN" ]; then
+            echo "⚠ COPR_LOGIN or COPR_TOKEN not configured - skipping Copr upload"
+            echo "To enable: Add COPR_LOGIN and COPR_TOKEN to repository secrets"
+            echo "Get them from: https://copr.fedorainfracloud.org/api/"
+            exit 0
+          fi
+          
           # Install copr-cli if not present
           if ! command -v copr-cli &> /dev/null; then
-            dnf install -y copr-cli
+            sudo dnf install -y copr-cli 2>/dev/null || dnf install -y copr-cli
           fi
           
           # Find SRPM
@@ -317,26 +328,26 @@ jobs:
             exit 1
           fi
           
-          echo "Uploading $SRPM to Copr: jeanpereira/wifiman"
+          echo "📦 Found SRPM: $SRPM"
+          echo "🚀 Uploading to Copr: jeanpereira/wifiman"
           
-          # Configure copr-cli with API token
+          # Configure copr-cli (secrets are masked in logs by GitHub)
           mkdir -p ~/.config
           cat > ~/.config/copr << EOF
           [copr-cli]
           username = jeanpereira
+          login = ${COPR_LOGIN}
+          token = ${COPR_TOKEN}
           copr_url = https://copr.fedorainfracloud.org
           EOF
           
+          chmod 600 ~/.config/copr
+          
           # Upload SRPM to Copr (builds for all enabled chroots)
-          if [ -n "${{ secrets.COPR_API_TOKEN }}" ]; then
-            echo "login = ${{ secrets.COPR_API_TOKEN }}" >> ~/.config/copr
-            echo "token = ${{ secrets.COPR_API_TOKEN }}" >> ~/.config/copr
-            copr-cli build jeanpereira/wifiman "$SRPM"
-            echo "✓ SRPM uploaded to Copr successfully"
-          else
-            echo "WARNING: COPR_API_TOKEN not configured - skipping Copr upload"
-            echo "To enable Copr uploads, add COPR_API_TOKEN to repository secrets"
-          fi
+          copr-cli build jeanpereira/wifiman "$SRPM" --nowait
+          
+          echo "✅ SRPM uploaded to Copr successfully"
+          echo "🔗 Monitor build: https://copr.fedorainfracloud.org/coprs/jeanpereira/wifiman/builds/"
 
   summary:
     name: Build Summary
