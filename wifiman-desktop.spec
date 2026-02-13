@@ -57,8 +57,9 @@ tar xf data.tar.gz
 install -D -m 755 usr/bin/wifiman-desktop %{buildroot}%{_bindir}/wifiman-desktop
 
 # Install lib directory (keep /usr/lib path to match service ExecStart)
+# Use . to include all files including dotfiles (.env)
 mkdir -p %{buildroot}%{_prefix}/lib/wifiman-desktop
-cp -a usr/lib/wifiman-desktop/* %{buildroot}%{_prefix}/lib/wifiman-desktop/
+cp -a usr/lib/wifiman-desktop/. %{buildroot}%{_prefix}/lib/wifiman-desktop/
 
 # Install systemd service
 install -D -m 644 usr/lib/wifiman-desktop/wifiman-desktop.service %{buildroot}%{_unitdir}/%{name}.service
