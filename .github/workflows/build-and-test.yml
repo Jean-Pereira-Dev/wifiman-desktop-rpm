@@ -99,7 +99,7 @@ jobs:
     name: Create GitHub Release
     runs-on: [self-hosted, linux, x64]
     needs: check-version
-    if: needs.check-version.outputs.release_exists != 'true'
+    if: needs.check-version.outputs.release_exists != 'true' || github.event_name == 'workflow_dispatch'
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
     steps:
