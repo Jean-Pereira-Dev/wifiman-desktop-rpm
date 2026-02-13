@@ -51,7 +51,7 @@ With this free-to-use (and ad-free) app you can:
 %prep
 %setup -cT
 ar x %{SOURCE0}
-tar xf data.tar.xz
+tar xf data.tar.gz
 %patch -P 0 -p0
 %patch -P 1 -p0
 
