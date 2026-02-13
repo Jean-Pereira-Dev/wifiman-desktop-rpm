@@ -160,7 +160,6 @@ jobs:
           LATEST_VERSION="${{ needs.check-version.outputs.latest_version }}"
           echo "Updating spec file to version $LATEST_VERSION"
           sed -i "s/^Version:.*/Version:  $LATEST_VERSION/" wifiman-desktop.spec
-          sed -i "s/^Release:.*/Release:  1/" wifiman-desktop.spec
           
           # Update changelog
           TODAY=$(LC_ALL=C date +"%a %b %d %Y")
@@ -168,6 +167,18 @@ jobs:
           
           echo "Updated spec file:"
           grep -A 2 "^Version:" wifiman-desktop.spec
+
+      - name: Update build release number
+        run: |
+          RELEASE_NUMBER="${{ github.run_number }}"
+          CURRENT_VERSION=$(grep "^Version:" wifiman-desktop.spec | awk '{print $2}')
+
+          echo "Setting Release to $RELEASE_NUMBER for version $CURRENT_VERSION"
+          sed -i "s/^Release:.*/Release:  $RELEASE_NUMBER%{?dist}/" wifiman-desktop.spec
+
+          # Add a build entry to changelog for traceability
+          TODAY=$(LC_ALL=C date +"%a %b %d %Y")
+          sed -i "/%changelog/a * $TODAY GitHub Actions <actions@github.com> $CURRENT_VERSION-$RELEASE_NUMBER\\n- CI build $RELEASE_NUMBER\\n" wifiman-desktop.spec
 
       - name: Create build container
         id: create_container

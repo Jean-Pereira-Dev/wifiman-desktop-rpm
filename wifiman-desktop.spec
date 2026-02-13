@@ -56,9 +56,9 @@ tar xf data.tar.gz
 # Install binary
 install -D -m 755 usr/bin/wifiman-desktop %{buildroot}%{_bindir}/wifiman-desktop
 
-# Install lib directory
-mkdir -p %{buildroot}%{_libdir}/wifiman-desktop
-cp -a usr/lib/wifiman-desktop/* %{buildroot}%{_libdir}/wifiman-desktop/
+# Install lib directory (keep /usr/lib path to match service ExecStart)
+mkdir -p %{buildroot}%{_prefix}/lib/wifiman-desktop
+cp -a usr/lib/wifiman-desktop/* %{buildroot}%{_prefix}/lib/wifiman-desktop/
 
 # Install systemd service
 install -D -m 644 usr/lib/wifiman-desktop/wifiman-desktop.service %{buildroot}%{_unitdir}/%{name}.service
@@ -94,7 +94,7 @@ fi
 %files
 %defattr(-,root,root,-)
 %{_bindir}/wifiman-desktop
-%{_libdir}/wifiman-desktop/
+%{_prefix}/lib/wifiman-desktop/
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 %{_unitdir}/%{name}.service
@@ -103,7 +103,7 @@ fi
 * Thu Feb 12 2026 GitHub Actions <actions@github.com> 1.2.8-1
 - Update to version 1.2.8 with new FHS-compliant structure
 - Remove obsolete patches (package now uses standard paths)
-- Binary now in /usr/bin, libraries in /usr/lib64/wifiman-desktop
+- Binary now in /usr/bin, libraries in /usr/lib/wifiman-desktop
 
 * Thu Sep 05 2024 Arun Babu Neelicattu <arun.neelicattu@gmail.com> 0.3.0-3
 - spec: include all arch debs in srpm (arun.neelicattu@gmail.com)
