@@ -71,7 +71,9 @@ weekly on a GitHub-hosted runner, independently of the private RPM build runner.
 It makes an empty maintenance commit after 30 days without commits, well before
 GitHub's 60-day inactivity cutoff. It also re-enables the build workflow if its
 state is specifically `disabled_inactivity`; it leaves `disabled_manually` alone.
-No source files are changed by maintenance commits.
+No source files are changed by maintenance commits. GitHub signs these bot
+commits, and the workflow refuses to update the branch unless GitHub confirms
+the signature is verified. No personal signing key is stored in Actions.
 
 The keepalive needs `contents: write` and `actions: write`, and branch rules must
 allow its maintenance commit. The default branch is updated without force;

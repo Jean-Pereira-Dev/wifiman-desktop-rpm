@@ -13,7 +13,7 @@ function fixture(state = 'active', date = '2026-09-01T00:00:00Z', updateError = 
     git: {
       getRef: async () => ({data: {object: {sha: ++reads > 1 && raced ? 'new-push' : 'old'}}}),
       getCommit: async () => ({data: {committer: {date}, tree: {sha: 'same-tree'}}}),
-      createCommit: async args => {events.push(args); return {data: {sha: 'maintenance'}};},
+      createCommit: async args => {events.push(args); return {data: {sha: 'maintenance', verification: {verified: true}}};},
       updateRef: async args => {events.push(args); if (updateError) throw updateError;},
     },
   }};
@@ -44,4 +44,15 @@ test('a concurrent push is preserved while branch protection failures are report
 });
 test('invalid dates fail visibly', async () => {
   await assert.rejects(run(fixture('active', 'invalid'), now), /Invalid commit date/);
+});
+
+test('bot signing uses authenticated identity and rejects unverified commits before updating the branch', async () => {
+  const signed = fixture(); await run(signed, now);
+  for (const field of ['author', 'committer', 'signature']) assert.equal(field in signed.events[0], false);
+  for (const verification of [undefined, {verified: false, reason: 'unsigned'}]) {
+    const m = fixture();
+    m.github.rest.git.createCommit = async () => ({data: {sha: 'unsigned', verification}});
+    await assert.rejects(run(m, now), /signature was not verified/);
+    assert.deepEqual(m.events, []);
+  }
 });

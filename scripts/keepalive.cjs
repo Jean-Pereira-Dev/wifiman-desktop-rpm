@@ -24,8 +24,11 @@ module.exports = async ({github, context, core}, now = new Date()) => {
   const commit = (await github.rest.git.createCommit({...repo,
     message: 'Keep daily release checks active [skip ci]',
     tree: head.tree.sha, parents: [ref.object.sha],
-    author: {name: 'github-actions[bot]', email: '41898282+github-actions[bot]@users.noreply.github.com'},
+    // Let GitHub authenticate and sign the bot commit; do not override identity.
   })).data;
+  if (commit.verification?.verified !== true) {
+    throw new Error(`Maintenance commit signature was not verified: ${commit.verification?.reason || 'missing verification'}`);
+  }
   try {
     await github.rest.git.updateRef({...repo, ref: `heads/${branch}`, sha: commit.sha, force: false});
   } catch (error) {
