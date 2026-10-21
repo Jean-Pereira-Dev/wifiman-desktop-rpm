@@ -2,6 +2,11 @@
 set -euo pipefail
 
 echo "=== Setting up build environment ==="
+# Enterprise Linux needs EPEL and CRB for desktop/build dependencies.
+if [ "$(rpm -E '%{?rhel}')" = 10 ]; then
+  dnf install -y dnf-plugins-core epel-release
+  dnf config-manager --set-enabled crb
+fi
 dnf install -y rpm-build rpmdevtools dnf-plugins-core
 dnf builddep -y wifiman-desktop.spec
 

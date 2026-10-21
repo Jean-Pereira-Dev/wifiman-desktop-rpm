@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const run = require('../scripts/release.cjs');
+delete process.env.EPEL_VERSION; // Each test controls its target set, independent of CI env.
 process.env.VERSION = '1.3.0';
 process.env.FEDORA_VERSIONS = '["43"]';
 const binary = {id: 1, name: 'wifiman-desktop-1.3.0-5.fc43.x86_64.rpm', size: 5};
@@ -78,4 +79,19 @@ test('a new stable Fedora requires new assets and a matching Copr receipt', asyn
     await run(complete, 'check');
     assert.deepEqual(complete.events, [['build_required', 'false']]);
   } finally { process.env.FEDORA_VERSIONS = '["43"]'; delete process.env.COPR_CONFIGURED; }
+});
+
+ test('EPEL requires its own RPM, SRPM and Copr receipt', async () => {
+  process.env.EPEL_VERSION = '10';
+  process.env.COPR_CONFIGURED = 'true';
+  try {
+    const assets = [binary, source, {...binary, name: binary.name.replace('fc43', 'el10')}, {...source, name: source.name.replace('fc43', 'el10')}];
+    for (const [files, body, expected] of [
+      [[binary, source], '<!-- wifiman-copr-success:43,epel10 -->', 'true'],
+      [assets, '<!-- wifiman-copr-success:43 -->', 'true'],
+      [assets, '<!-- wifiman-copr-success:43,epel10 -->', 'false']]) {
+      const m = mock({id:3, body}, files); await run(m, 'check');
+      assert.deepEqual(m.events, [['build_required', expected]]);
+    }
+  } finally { delete process.env.EPEL_VERSION; delete process.env.COPR_CONFIGURED; }
 });

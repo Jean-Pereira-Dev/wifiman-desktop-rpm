@@ -136,3 +136,21 @@ chroot is unavailable, the workflow fails visibly and retries the next day.
 The JavaScript actions use Node 24 runtimes; `setup-node` also selects Node 24
 for the regression tests. The self-hosted runner must support Node 24
 (Actions runner 2.327.1 or newer).
+
+
+### Enterprise Linux 10
+
+The daily pipeline also builds an x86_64 EL10 RPM on AlmaLinux 10, tests
+installation/removal of the same package on Rocky Linux 10, and adds
+`epel-10-x86_64` to Copr before submitting the SRPM. EPEL and CRB repositories
+are required for dependencies. GitHub releases include the `.el10` RPM/SRPM.
+Publishing waits for both Fedora and EL10 tests; Copr success receipts include
+EPEL 10 so an existing Fedora-only release cannot suppress the first EL10 build.
+Container tests verify packaging, not a graphical session or live Teleport VPN.
+
+AlmaLinux and Rocky Linux currently support major versions 8, 9 and 10, with
+only the latest minor release of each supported. WiFiman 1.3.0's prebuilt
+binaries require GLIBC_2.34 (EL8 has 2.28); EL9 lacks the WebKitGTK 4.1 and
+libsoup 3 dependencies in the repositories checked. These targets are not enabled.
+openSUSE requires a separate spec adaptation for package names and service
+macros; EPEL packages are not a substitute for openSUSE packages.

@@ -22,12 +22,12 @@ class FedoraTargetsTests(unittest.TestCase):
         records = [release('43'), release('44'), release('45', 'pending'),
                    release('46', 'pending'), release('42', eol='2026-06-01'),
                    dict(name='EPEL-10', version='10', id_prefix='FEDORA-EPEL', state='current')]
-        result = fedora.discover({'releases': records}, ['fedora-43-x86_64', 'fedora-44-x86_64'], date(2026, 10, 21))
+        result = fedora.discover({'releases': records}, ['fedora-43-x86_64', 'fedora-44-x86_64', 'epel-10-x86_64'], date(2026, 10, 21))
         self.assertEqual(result['fedora_versions'], ['43', '44'])
         self.assertEqual(result['latest_fedora'], '44')
 
     def test_new_stable_release_is_added_without_code_change(self):
-        result = fedora.discover({'releases': [release('44'), release('45')]}, ['fedora-44-x86_64', 'fedora-45-x86_64'])
+        result = fedora.discover({'releases': [release('44'), release('45')]}, ['fedora-44-x86_64', 'fedora-45-x86_64', 'epel-10-x86_64'])
         self.assertEqual(result['fedora_versions'], ['44', '45'])
 
     def test_empty_or_unavailable_target_fails_closed(self):

@@ -47,7 +47,7 @@ def discover(releases, available, today=None):
     if not versions:
         raise ValueError('No supported stable Fedora releases found; refusing an empty matrix')
     versions = [str(version) for version in sorted(versions)]
-    chroots = [f'fedora-{version}-x86_64' for version in versions]
+    chroots = [f'fedora-{version}-x86_64' for version in versions] + ['epel-10-x86_64']
     missing = set(chroots) - set(available)
     if missing:
         raise ValueError('Stable Fedora targets not available in Copr yet: ' + ', '.join(sorted(missing)))

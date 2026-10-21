@@ -9,6 +9,10 @@ Summary:  Discover devices and access Teleport VPNs
 License:  MIT
 Vendor:   Ubiquiti Inc. <monitoring@wifiman.com>
 URL:      https://wifiman.com/
+# RPM packaging source and issue tracker:
+# https://github.com/Jean-Pereira-Dev/wifiman-desktop-rpm
+# Fedora / EPEL package repository:
+# https://copr.fedorainfracloud.org/coprs/jeanpereira/wifiman/
 
 %ifarch x86_64
 Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-amd64.deb
@@ -40,6 +44,10 @@ Requires(post): libselinux-utils
 Recommends: libappindicator-gtk3
 
 %description
+Unofficial RPM packaging of Ubiquiti WiFiman Desktop.
+Packaging source and issues: https://github.com/Jean-Pereira-Dev/wifiman-desktop-rpm
+Package repository: https://copr.fedorainfracloud.org/coprs/jeanpereira/wifiman/
+
 WiFiman is here to save your home or office network from sluggish surfing, endless buffering, and congested data channels.
 With this free-to-use (and ad-free) app you can:
 
