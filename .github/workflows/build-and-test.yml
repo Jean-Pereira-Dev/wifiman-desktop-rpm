@@ -25,15 +25,19 @@ jobs:
     # External PR code must not execute on the private runner.
     runs-on: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["self-hosted","linux","x64"]') }}
     outputs:
+      fedora_versions: ${{ steps.targets.outputs.fedora_versions }}
+      copr_chroots: ${{ steps.targets.outputs.copr_chroots }}
+      latest_fedora: ${{ steps.targets.outputs.latest_fedora }}
       version: ${{ steps.check.outputs.latest_version }}
       download_url: ${{ steps.check.outputs.download_url }}
       sha256: ${{ steps.check.outputs.sha256 }}
       build_required: ${{ steps.release.outputs.build_required }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
+          package-manager-cache: false
       - name: Keep daily schedule active
         if: github.event_name == 'schedule'
         run: |
@@ -55,38 +59,50 @@ jobs:
       - name: Discover upstream release
         id: check
         run: bash scripts/check-version.sh
+      - name: Discover supported stable Fedora releases
+        id: targets
+        run: python3 scripts/fedora_targets.py
       - name: Check published RPM assets
         id: release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           VERSION: ${{ steps.check.outputs.latest_version }}
+          FEDORA_VERSIONS: ${{ steps.targets.outputs.fedora_versions }}
           COPR_CONFIGURED: ${{ secrets.COPR_LOGIN != '' && secrets.COPR_TOKEN != '' }}
         with:
           script: await require('./scripts/release.cjs')({github, context, core}, 'check');
       - name: Report discovery
         env:
+          FEDORA_VERSIONS: ${{ steps.targets.outputs.fedora_versions }}
           CURRENT_VERSION: ${{ steps.check.outputs.current_version }}
           VERSION: ${{ steps.check.outputs.latest_version }}
           BUILD_REQUIRED: ${{ steps.release.outputs.build_required }}
         run: |
           printf '## WiFiman release check\n\nSpec baseline: %s\n\nOfficial version: %s\n\nBuild or Copr retry needed: %s\n' "$CURRENT_VERSION" "$VERSION" "$BUILD_REQUIRED" >> "$GITHUB_STEP_SUMMARY"
+          printf '\nFedora test matrix: %s\n' "$FEDORA_VERSIONS" >> "$GITHUB_STEP_SUMMARY"
 
   build-and-test:
+    name: Build and test Fedora ${{ matrix.fedora }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        fedora: ${{ fromJSON(needs.check-version.outputs.fedora_versions) }}
     timeout-minutes: 90
     needs: check-version
     if: needs.check-version.outputs.build_required == 'true' || github.event_name != 'schedule'
     # External PR code must not execute on the private runner.
     runs-on: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["self-hosted","linux","x64"]') }}
     permissions:
-      contents: write
+      contents: read
     env:
-      CONTAINER_NAME: wifiman-${{ github.run_id }}-${{ github.run_attempt }}
-      COPR_CONFIGURED: ${{ secrets.COPR_LOGIN != '' && secrets.COPR_TOKEN != '' }}
+      CONTAINER_NAME: wifiman-${{ github.run_id }}-${{ github.run_attempt }}-fc${{ matrix.fedora }}
+      FEDORA_VERSION: ${{ matrix.fedora }}
       VERSION: ${{ needs.check-version.outputs.version }}
       DOWNLOAD_URL: ${{ needs.check-version.outputs.download_url }}
       SHA256: ${{ needs.check-version.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Prepare version and verified source
         run: |
           set -euo pipefail
@@ -95,10 +111,10 @@ jobs:
           mkdir -p sources
           curl --fail --location --show-error --retry 3 --connect-timeout 15 --max-time 300 "$DOWNLOAD_URL" -o "sources/${DOWNLOAD_URL##*/}"
           echo "$SHA256  sources/${DOWNLOAD_URL##*/}" | sha256sum --check --strict
-      - name: Build, install and uninstall on Fedora 43
+      - name: Build, install and uninstall on Fedora ${{ matrix.fedora }}
         run: |
           set -euo pipefail
-          docker run --name "$CONTAINER_NAME" -d -w /build fedora:43 tail -f /dev/null
+          docker run --name "$CONTAINER_NAME" -d -w /build "fedora:$FEDORA_VERSION" tail -f /dev/null
           docker cp . "$CONTAINER_NAME:/build"
           docker exec "$CONTAINER_NAME" bash scripts/build-rpm.sh
           docker cp "$CONTAINER_NAME:/build/rpmbuild" ./rpmbuild
@@ -107,14 +123,36 @@ jobs:
       - name: Clean up container
         if: always()
         run: docker rm -f "$CONTAINER_NAME" || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: wifiman-${{ env.VERSION }}-fedora43
+          name: wifiman-${{ env.VERSION }}-fedora${{ matrix.fedora }}
           path: release-assets/*.rpm
           if-no-files-found: error
+
+  publish:
+    name: Publish RPMs and build in Copr
+    needs: [check-version, build-and-test]
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check-version.outputs.version }}
+      FEDORA_VERSIONS: ${{ needs.check-version.outputs.fedora_versions }}
+      COPR_CHROOTS: ${{ needs.check-version.outputs.copr_chroots }}
+      LATEST_FEDORA: ${{ needs.check-version.outputs.latest_fedora }}
+      COPR_CONFIGURED: ${{ secrets.COPR_LOGIN != '' && secrets.COPR_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wifiman-${{ env.VERSION }}-fedora*
+          path: release-assets
+          merge-multiple: true
       - name: Publish tested RPMs
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: await require('./scripts/release.cjs')({github, context, core}, 'publish');
       - name: Submit to Copr when configured
@@ -135,9 +173,16 @@ jobs:
           trap 'rm -f "$XDG_CONFIG_HOME/copr"' EXIT
           umask 077
           printf '[copr-cli]\nusername = jeanpereira\nlogin = %s\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' "$COPR_LOGIN" "$COPR_TOKEN" > "$XDG_CONFIG_HOME/copr"
-          "$RUNNER_TEMP/copr-venv/bin/copr-cli" --config "$XDG_CONFIG_HOME/copr" build jeanpereira/wifiman release-assets/*.src.rpm
+          "$RUNNER_TEMP/copr-venv/bin/python" scripts/sync_copr.py --config "$XDG_CONFIG_HOME/copr" --chroots "$COPR_CHROOTS"
+          mapfile -t CHROOTS < <(python3 -c 'import json, os; print("\n".join(json.loads(os.environ["COPR_CHROOTS"])))')
+          CHROOT_ARGS=()
+          for CHROOT in "${CHROOTS[@]}"; do CHROOT_ARGS+=(--chroot "$CHROOT"); done
+          # One SRPM is sufficient: Copr rebuilds it independently in each chroot.
+          SRPMS=(release-assets/*.fc"$LATEST_FEDORA".src.rpm)
+          [[ ${#SRPMS[@]} -eq 1 && -f "${SRPMS[0]}" ]]
+          "$RUNNER_TEMP/copr-venv/bin/copr-cli" --config "$XDG_CONFIG_HOME/copr" build "${CHROOT_ARGS[@]}" jeanpereira/wifiman "${SRPMS[0]}"
       - name: Record successful Copr build
         if: env.COPR_CONFIGURED == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: await require('./scripts/release.cjs')({github, context, core}, 'copr-success');

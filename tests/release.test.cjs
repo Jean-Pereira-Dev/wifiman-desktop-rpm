@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const run = require('../scripts/release.cjs');
 process.env.VERSION = '1.3.0';
+process.env.FEDORA_VERSIONS = '["43"]';
 const binary = {id: 1, name: 'wifiman-desktop-1.3.0-5.fc43.x86_64.rpm', size: 5};
 const source = {id: 2, name: 'wifiman-desktop-1.3.0-5.fc43.src.rpm', size: 5};
 function mock(release, assets = [], status = 404) {
@@ -50,7 +51,7 @@ test('publish is last; retries replace matching assets', async () => {
   } finally { process.chdir(previous); fs.rmSync(temp, {recursive:true, force:true}); }
 });
 test('configured Copr must succeed before daily builds can skip', async () => {
-  const marker = '<!-- wifiman-copr-success -->';
+  const marker = '<!-- wifiman-copr-success:43 -->';
   process.env.COPR_CONFIGURED = 'true';
   try {
     const pending = mock({id: 3}, [binary, source]); await run(pending, 'check');
@@ -60,4 +61,21 @@ test('configured Copr must succeed before daily builds can skip', async () => {
     const success = mock({id: 3, body: 'Release notes'}); await run(success, 'copr-success');
     assert.equal(success.events[0][1].body, 'Release notes\n\n' + marker);
   } finally { delete process.env.COPR_CONFIGURED; }
+});
+
+test('a new stable Fedora requires new assets and a matching Copr receipt', async () => {
+  process.env.FEDORA_VERSIONS = '["43","44"]';
+  process.env.COPR_CONFIGURED = 'true';
+  try {
+    const oldAssets = mock({id: 3, body: '<!-- wifiman-copr-success:43 -->'}, [binary, source]);
+    await run(oldAssets, 'check');
+    assert.deepEqual(oldAssets.events, [['build_required', 'true']]);
+    const assets = [binary, source, {...binary, name: binary.name.replace('fc43', 'fc44')}, {...source, name: source.name.replace('fc43', 'fc44')}];
+    const pendingCopr = mock({id: 3, body: '<!-- wifiman-copr-success:43 -->'}, assets);
+    await run(pendingCopr, 'check');
+    assert.deepEqual(pendingCopr.events, [['build_required', 'true']]);
+    const complete = mock({id: 3, body: '<!-- wifiman-copr-success:43,44 -->'}, assets);
+    await run(complete, 'check');
+    assert.deepEqual(complete.events, [['build_required', 'false']]);
+  } finally { process.env.FEDORA_VERSIONS = '["43"]'; delete process.env.COPR_CONFIGURED; }
 });

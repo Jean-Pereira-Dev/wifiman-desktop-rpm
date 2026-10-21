@@ -26,13 +26,13 @@ dnf install wifiman-desktop
 
 ### From GitHub Releases
 
-Download the Fedora 43 RPM from the [releases page](https://github.com/Jean-Pereira-Dev/wifiman-desktop-rpm/releases):
+Download the RPM matching your Fedora release from the [releases page](https://github.com/Jean-Pereira-Dev/wifiman-desktop-rpm/releases):
 
 ```sh
-dnf install ./wifiman-desktop-1.3.0-*.fc43.x86_64.rpm
+dnf install ./wifiman-desktop-1.3.0-*.fc$(rpm -E %fedora).x86_64.rpm
 ```
 
-> **Note:** GitHub releases contain only Fedora 43 RPMs. For other Fedora versions, use the Copr repository above.
+> GitHub releases contain separate RPMs for each supported stable Fedora release.
 
 ## Usage
 
@@ -46,14 +46,15 @@ systemctl enable --now wifiman-desktop.service
 
 The daily workflow reads Ubiquiti's Linux manifest, validates the version and
 package URL, and checks the downloaded package against the manifest SHA-256.
-It builds on the self-hosted Linux x64 runner using Fedora 43, tests installation and
+It discovers supported stable Fedora releases from the official Bodhi API,
+then builds and tests each release on the self-hosted Linux x64 runner, including installation and
 removal, and uploads RPM/SRPM artifacts. PRs run the same checks without
 publishing releases or submitting to Copr. External PRs use GitHub-hosted
 runners so untrusted changes do not execute on the private runner.
 
 Scheduled runs skip only when the upstream version has a published release
-containing both a nonempty Fedora 43 x86_64 RPM and an SRPM, plus a
-successful Copr marker when Copr is configured. Missing assets, draft
+containing a nonempty x86_64 RPM and SRPM for every current Fedora target,
+plus a successful Copr marker for that exact target list when Copr is configured. Missing assets, draft
 releases, failed uploads, and failed Copr builds can therefore be retried. Pushes and manual
 runs always build. New releases remain drafts until their assets are uploaded.
 Copr submission is optional (`COPR_LOGIN` and `COPR_TOKEN` repository secrets);
@@ -114,3 +115,24 @@ To reverse them manually when no longer needed:
 sudo semanage permissive -d init_t
 sudo semanage permissive -d iptables_t
 ```
+
+## Automatic Fedora coverage
+
+Every daily check queries Fedora Bodhi for releases with `state=current`,
+filters out EPEL, future releases and EOL releases, and verifies the matching
+x86_64 chroots exist in Copr. There is no hard-coded Fedora version list.
+Beta and Rawhide releases are excluded. A newly stable Fedora release triggers
+builds even if the WiFiman version is unchanged.
+
+Each matrix job builds, installs, validates and removes its RPM in the matching
+Fedora container. All targets must pass before the release is published. Copr
+is then synchronized by adding missing targets while preserving existing
+project targets and enabling `follow_fedora_branching`. One SRPM is submitted
+with an explicit list of stable Fedora chroots; older/custom/beta targets in
+the project are preserved but not submitted by this workflow. EOL Fedora
+versions stop being tested automatically. If discovery fails or a newly stable
+chroot is unavailable, the workflow fails visibly and retries the next day.
+
+The JavaScript actions use Node 24 runtimes; `setup-node` also selects Node 24
+for the regression tests. The self-hosted runner must support Node 24
+(Actions runner 2.327.1 or newer).
