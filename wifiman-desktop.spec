@@ -3,7 +3,7 @@
 %define debug_package %{nil}
 
 Name:     wifiman-desktop
-Version:  1.2.8
+Version:  1.3.0
 Release:  1%{?dist}
 Summary:  Discover devices and access Teleport VPNs
 License:  MIT
@@ -20,6 +20,8 @@ BuildRequires: gzip
 BuildRequires: systemd-units
 BuildRequires: tar
 BuildRequires: xz
+BuildRequires: zstd
+ExclusiveArch: x86_64
 
 Requires: gtk3
 Requires: libsecret
@@ -32,6 +34,8 @@ Requires: nss
 Requires: libnotify
 Requires: wireguard-tools
 Requires: systemd
+Requires(post): policycoreutils-python-utils
+Requires(post): libselinux-utils
 
 Recommends: libappindicator-gtk3
 
@@ -48,7 +52,9 @@ With this free-to-use (and ad-free) app you can:
 %prep
 %setup -cT
 ar x %{SOURCE0}
-tar xf data.tar.gz
+payload=$(find . -maxdepth 1 -name 'data.tar.*' -print)
+test -n "$payload"
+tar xf "$payload"
 
 %build
 
@@ -72,6 +78,14 @@ cp -a usr/share/* %{buildroot}%{_datadir}/
 desktop-file-validate %{buildroot}/%{_datadir}/applications/%{name}.desktop
 
 %post
+# BEGIN WIFIMAN SELINUX WORKAROUND
+# Apply before starting the daemon; repeated installs/upgrades are idempotent.
+# Containers and hosts with SELinux disabled do not have a live policy to alter.
+if selinuxenabled; then
+    semanage permissive -a init_t || exit $?
+    semanage permissive -a iptables_t || exit $?
+fi
+# END WIFIMAN SELINUX WORKAROUND
 %systemd_post %{name}.service
 /usr/bin/systemctl enable --now %{name}.service >/dev/null 2>&1 || :
 /bin/touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
@@ -101,6 +115,11 @@ fi
 %{_unitdir}/%{name}.service
 
 %changelog
+* Wed Oct 21 2026 GitHub Actions <actions@github.com> 1.3.0-1
+- Apply init_t and iptables_t SELinux permissive settings before service startup
+- Update to official WiFiman Desktop 1.3.0
+- Accept compressed Debian payload formats supported by tar
+
 * Thu Feb 12 2026 GitHub Actions <actions@github.com> 1.2.8-1
 - Update to version 1.2.8 with new FHS-compliant structure
 - Remove obsolete patches (package now uses standard paths)
