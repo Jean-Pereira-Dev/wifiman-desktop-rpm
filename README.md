@@ -200,3 +200,11 @@ with `opensuse-tumbleweed`. Review the repository signing key when prompted.
 Supported-release references: [AlmaLinux](https://wiki.almalinux.org/release-notes/),
 [Rocky Linux](https://docs.rockylinux.org/releases/), and
 [openSUSE](https://get.opensuse.org/).
+
+### Tumbleweed build environment
+
+Copr's Tumbleweed target uses a repository-created Mock bootstrap (`bootstrap=on`)
+instead of the default container image. Rolling container images and repository
+snapshots can contain incompatible versions of DNF and its plugins (as seen in
+Copr build 11182580). The bootstrap remains isolated; package signature checks
+stay enabled. The pipeline applies this setting only to Tumbleweed.

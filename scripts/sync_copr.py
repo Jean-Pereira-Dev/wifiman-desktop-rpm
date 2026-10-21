@@ -17,6 +17,17 @@ def sync(client, desired):
     if not set(desired).issubset(existing) or not project.follow_fedora_branching:
         client.project_proxy.edit(ownername='jeanpereira', projectname='wifiman',
                                   chroots=sorted(existing | set(desired)), follow_fedora_branching=True)
+    # Tumbleweed's rolling bootstrap image can be ahead of its repository.
+    # Build the isolated bootstrap from repository packages instead (Copr
+    # bootstrap='on' keeps bootstrap enabled without using a container image).
+    target = 'opensuse-tumbleweed-x86_64'
+    if target in desired:
+        config = client.project_chroot_proxy.get(
+            ownername='jeanpereira', projectname='wifiman', chrootname=target)
+        if config.bootstrap != 'on':
+            client.project_chroot_proxy.edit(
+                ownername='jeanpereira', projectname='wifiman',
+                chrootname=target, bootstrap='on')
     print('Copr targets ready: ' + ', '.join(desired))
 
 

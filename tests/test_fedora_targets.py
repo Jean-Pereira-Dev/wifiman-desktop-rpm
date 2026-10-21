@@ -53,6 +53,7 @@ class FedoraTargetsTests(unittest.TestCase):
         client.project_proxy.get.return_value = SimpleNamespace(chroot_repos={'fedora-44-x86_64': ''}, follow_fedora_branching=True)
         copr.sync(client, ['fedora-44-x86_64'])
         client.project_proxy.edit.assert_not_called()
+        client.project_chroot_proxy.edit.assert_not_called()
 
     def test_epel_is_required_and_can_be_added(self):
         with self.assertRaises(ValueError):
@@ -68,3 +69,20 @@ class FedoraTargetsTests(unittest.TestCase):
         for target in ['epel-8-x86_64', 'epel-9-x86_64', 'epel-11-x86_64']:
             with self.subTest(target=target), self.assertRaises(ValueError):
                 copr.sync(Mock(), [target])
+
+    def test_tumbleweed_bootstrap_avoids_image_repository_skew(self):
+        target = 'opensuse-tumbleweed-x86_64'
+        for current in ['default', 'image', 'on']:
+            client = Mock()
+            client.mock_chroot_proxy.get_list.return_value = {target: ''}
+            client.project_proxy.get.return_value = SimpleNamespace(
+                chroot_repos={target: ''}, follow_fedora_branching=True)
+            client.project_chroot_proxy.get.return_value = SimpleNamespace(bootstrap=current)
+            copr.sync(client, [target])
+            if current == 'on':
+                client.project_chroot_proxy.edit.assert_not_called()
+            else:
+                client.project_chroot_proxy.edit.assert_called_once_with(
+                    ownername='jeanpereira', projectname='wifiman',
+                    chrootname=target, bootstrap='on')
+            client.project_proxy.edit.assert_not_called()
