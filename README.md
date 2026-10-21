@@ -146,6 +146,21 @@ installation/removal of the same package on Rocky Linux 10, and adds
 are required for dependencies. GitHub releases include the `.el10` RPM/SRPM.
 Publishing waits for both Fedora and EL10 tests; Copr success receipts include
 EPEL 10 so an existing Fedora-only release cannot suppress the first EL10 build.
+On AlmaLinux 10 and Rocky Linux 10, enable the dependency repositories before
+installing from Copr:
+
+```sh
+sudo dnf install dnf-plugins-core epel-release
+sudo dnf config-manager --set-enabled crb
+sudo dnf copr enable jeanpereira/wifiman
+sudo dnf install wifiman-desktop
+```
+
+RHEL 10 uses CodeReady Builder instead of the `crb` repository name; follow the
+[official EPEL setup instructions](https://docs.fedoraproject.org/en-US/epel/getting-started/)
+for that system first. The spec declares packages and shared-library requirements;
+it does not enable third-party repositories on the user's system.
+
 Container tests verify packaging, not a graphical session or live Teleport VPN.
 
 AlmaLinux and Rocky Linux currently support major versions 8, 9 and 10, with
