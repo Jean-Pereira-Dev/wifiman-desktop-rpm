@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const run = require('../scripts/release.cjs');
+delete process.env.OPENSUSE_DIST_TAGS;
 delete process.env.EPEL_VERSION; // Each test controls its target set, independent of CI env.
 process.env.VERSION = '1.3.0';
 process.env.FEDORA_VERSIONS = '["43"]';
@@ -94,4 +95,21 @@ test('a new stable Fedora requires new assets and a matching Copr receipt', asyn
       assert.deepEqual(m.events, [['build_required', expected]]);
     }
   } finally { delete process.env.EPEL_VERSION; delete process.env.COPR_CONFIGURED; }
+});
+
+test('openSUSE assets and receipt are required independently of Fedora', async () => {
+  process.env.OPENSUSE_DIST_TAGS = '["suse1600","suse1699"]';
+  process.env.COPR_CONFIGURED = 'true';
+  try {
+    const assets = [binary, source, ...['suse1600', 'suse1699'].flatMap(tag =>
+      [binary, source].map(asset => ({...asset, name: asset.name.replace('fc43', tag)})))];
+    const marker = '<!-- wifiman-copr-success:43,suse1600,suse1699 -->';
+    for (const [files, body, expected] of [
+      [[binary, source], marker, 'true'],
+      [assets, '<!-- wifiman-copr-success:43 -->', 'true'],
+      [assets, marker, 'false']]) {
+      const m = mock({id:3, body}, files); await run(m, 'check');
+      assert.deepEqual(m.events, [['build_required', expected]]);
+    }
+  } finally { delete process.env.OPENSUSE_DIST_TAGS; delete process.env.COPR_CONFIGURED; }
 });

@@ -152,5 +152,30 @@ AlmaLinux and Rocky Linux currently support major versions 8, 9 and 10, with
 only the latest minor release of each supported. WiFiman 1.3.0's prebuilt
 binaries require GLIBC_2.34 (EL8 has 2.28); EL9 lacks the WebKitGTK 4.1 and
 libsoup 3 dependencies in the repositories checked. These targets are not enabled.
-openSUSE requires a separate spec adaptation for package names and service
-macros; EPEL packages are not a substitute for openSUSE packages.
+### openSUSE
+
+Leap 16.0 and Tumbleweed have separate build/install/remove jobs. Their RPMs
+use `.suse1600` and `.suse1699` respectively; install the package matching your
+system. The spec uses openSUSE dependencies and service macros, and does not
+apply the Fedora/EL SELinux permissive-domain workaround on openSUSE.
+Copr targets `opensuse-leap-16.0-x86_64` and `opensuse-tumbleweed-x86_64` are
+added automatically before submission. All configured targets must pass before
+GitHub release publication. openSUSE versions are explicitly validated targets;
+new Leap releases require testing and updating the target list.
+
+Leap 15.6 reached end of life in April 2026; Leap 16.1 remains a release
+candidate as of 2026-10-21. Slowroll and immutable variants are not tested.
+For Leap 16.0, enable the Copr repository with:
+
+```sh
+sudo zypper addrepo https://copr.fedorainfracloud.org/coprs/jeanpereira/wifiman/repo/opensuse-leap-16.0/jeanpereira-wifiman-opensuse-leap-16.0.repo
+sudo zypper refresh
+sudo zypper install wifiman-desktop
+```
+
+For Tumbleweed, replace both occurrences of `opensuse-leap-16.0` in that URL
+with `opensuse-tumbleweed`. Review the repository signing key when prompted.
+
+Supported-release references: [AlmaLinux](https://wiki.almalinux.org/release-notes/),
+[Rocky Linux](https://docs.rockylinux.org/releases/), and
+[openSUSE](https://get.opensuse.org/).

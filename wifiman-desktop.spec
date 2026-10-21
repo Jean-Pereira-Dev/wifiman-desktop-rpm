@@ -1,3 +1,6 @@
+%if 0%{?suse_version}
+%global dist .suse%{suse_version}
+%endif
 %global _hardened_build 1
 %define _build_id_links none
 %define debug_package %{nil}
@@ -21,27 +24,43 @@ Source0:  https://desktop.wifiman.com/wifiman-desktop-%{version}-amd64.deb
 BuildRequires: binutils
 BuildRequires: desktop-file-utils
 BuildRequires: gzip
+%if 0%{?suse_version}
+BuildRequires: systemd-rpm-macros
+%else
 BuildRequires: systemd-units
+%endif
 BuildRequires: tar
 BuildRequires: xz
 BuildRequires: zstd
 ExclusiveArch: x86_64
 
+%if 0%{?suse_version}
+Requires: libgtk-3-0
+Requires: libsecret-1-0
+Requires: libuuid1
+Requires: at-spi2-core
+Requires: libXtst6
+Requires: libXss1
+Requires: mozilla-nss
+Requires: libnotify4
+Recommends: libappindicator3-1
+%else
 Requires: gtk3
 Requires: libsecret
 Requires: libuuid
 Requires: at-spi2-core
-Requires: xdg-utils
 Requires: libXtst
 Requires: libXScrnSaver
 Requires: nss
 Requires: libnotify
-Requires: wireguard-tools
-Requires: systemd
 Requires(post): policycoreutils-python-utils
 Requires(post): libselinux-utils
 
 Recommends: libappindicator-gtk3
+%endif
+Requires: xdg-utils
+Requires: wireguard-tools
+Requires: systemd
 
 %description
 Unofficial RPM packaging of Ubiquiti WiFiman Desktop.
@@ -85,7 +104,15 @@ cp -a usr/share/* %{buildroot}%{_datadir}/
 %check
 desktop-file-validate %{buildroot}/%{_datadir}/applications/%{name}.desktop
 
+%if 0%{?suse_version}
+%pre
+%service_add_pre %{name}.service
+%endif
+
 %post
+%if 0%{?suse_version}
+%service_add_post %{name}.service
+%else
 # BEGIN WIFIMAN SELINUX WORKAROUND
 # Apply before starting the daemon; repeated installs/upgrades are idempotent.
 # Containers and hosts with SELinux disabled do not have a live policy to alter.
@@ -95,16 +122,25 @@ if selinuxenabled; then
 fi
 # END WIFIMAN SELINUX WORKAROUND
 %systemd_post %{name}.service
+%endif
 /usr/bin/systemctl enable --now %{name}.service >/dev/null 2>&1 || :
 /bin/touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
 update-mime-database %{_datadir}/mime &>/dev/null || :
 update-desktop-database %{_datadir}/applications &>/dev/null || :
 
 %preun
+%if 0%{?suse_version}
+%service_del_preun %{name}.service
+%else
 %systemd_preun %{name}.service
+%endif
 
 %postun
+%if 0%{?suse_version}
+%service_del_postun %{name}.service
+%else
 %systemd_postun_with_restart %{name}.service
+%endif
 
 if [ $1 -eq 0 ] ; then
     /bin/touch --no-create %{_datadir}/icons/hicolor &>/dev/null

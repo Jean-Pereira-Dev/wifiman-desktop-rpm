@@ -2,25 +2,31 @@
 set -euo pipefail
 
 echo "=== Setting up build environment ==="
-# Enterprise Linux needs EPEL and CRB for desktop/build dependencies.
-if [ "$(rpm -E '%{?rhel}')" = 10 ]; then
-  dnf install -y dnf-plugins-core epel-release
-  dnf config-manager --set-enabled crb
+if command -v zypper >/dev/null; then
+  zypper --non-interactive --gpg-auto-import-keys install rpm-build
+  build_requirements=$(rpmspec -q --buildrequires wifiman-desktop.spec)
+  mapfile -t build_requires <<< "$build_requirements"
+  zypper --non-interactive install "${build_requires[@]}"
+  mkdir -p ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+else
+  # Enterprise Linux needs EPEL and CRB for desktop/build dependencies.
+  if [ "$(rpm -E '%{?rhel}')" = 10 ]; then
+    dnf install -y dnf-plugins-core epel-release
+    dnf config-manager --set-enabled crb
+  fi
+  dnf install -y rpm-build rpmdevtools dnf-plugins-core
+  dnf builddep -y wifiman-desktop.spec
+  rpmdev-setuptree
 fi
-dnf install -y rpm-build rpmdevtools dnf-plugins-core
-dnf builddep -y wifiman-desktop.spec
-
-echo "=== Setting up build directory ==="
-rpmdev-setuptree
 
 echo "=== Copying verified source files ==="
 cp /build/sources/*.deb ~/rpmbuild/SOURCES/
 
 echo "=== Building SRPM ==="
-rpmbuild -bs wifiman-desktop.spec
+rpmbuild --define "_topdir $HOME/rpmbuild" -bs wifiman-desktop.spec
 
 echo "=== Building RPM ==="
-rpmbuild -bb wifiman-desktop.spec
+rpmbuild --define "_topdir $HOME/rpmbuild" -bb wifiman-desktop.spec
 
 echo "=== Build complete - listing artifacts ==="
 echo "SRPMS:"
@@ -36,7 +42,11 @@ if [ -z "$RPM_FILE" ]; then
 fi
 
 echo "Installing: $RPM_FILE"
-dnf install -y "$RPM_FILE"
+if command -v zypper >/dev/null; then
+  zypper --non-interactive install --allow-unsigned-rpm "$RPM_FILE"
+else
+  dnf install -y "$RPM_FILE"
+fi
 
 echo "Verifying package installation..."
 rpm -qi wifiman-desktop
@@ -82,7 +92,11 @@ done
 echo "✓ Installation test PASSED"
 
 echo "=== Testing uninstallation ==="
-dnf remove -y wifiman-desktop
+if command -v zypper >/dev/null; then
+  zypper --non-interactive remove wifiman-desktop
+else
+  dnf remove -y wifiman-desktop
+fi
 
 if rpm -q wifiman-desktop &>/dev/null; then
   echo "ERROR: Package still installed after removal"

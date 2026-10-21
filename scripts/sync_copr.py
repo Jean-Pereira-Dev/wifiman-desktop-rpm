@@ -6,7 +6,7 @@ import re
 
 
 def sync(client, desired):
-    if not desired or any(not re.fullmatch(r'(?:fedora-[1-9][0-9]*|epel-10)-x86_64', target) for target in desired):
+    if not desired or any(not re.fullmatch(r'(?:fedora-[1-9][0-9]*|epel-10|opensuse-leap-16\.0|opensuse-tumbleweed)-x86_64', target) for target in desired):
         raise ValueError('Invalid Copr targets')
     available = client.mock_chroot_proxy.get_list()
     missing = set(desired) - set(available)

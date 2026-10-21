@@ -10,11 +10,15 @@ module.exports = async ({github, context, core}, mode) => {
   const versions = [...new Set(targets.map(String))].sort((a, b) => Number(a) - Number(b));
   const distTags = versions.map(v => `fc${v}`);
   if (process.env.EPEL_VERSION === '10') distTags.push('el10');
+  const suseTags = JSON.parse(process.env.OPENSUSE_DIST_TAGS || '[]');
+  if (!Array.isArray(suseTags) || suseTags.some(v => !['suse1600', 'suse1699'].includes(v)))
+    throw new Error('Invalid openSUSE targets');
+  distTags.push(...new Set(suseTags));
   const completeFiles = files => distTags.every(v =>
     files.some(f => f.startsWith(`wifiman-desktop-${version}-`) && f.endsWith(`.${v}.x86_64.rpm`)) &&
     files.some(f => f.startsWith(`wifiman-desktop-${version}-`) && f.endsWith(`.${v}.src.rpm`)));
   const clearCoprMarker = body => (body || '').replace(/<!-- wifiman-copr-success(?::[a-z0-9,]+)? -->/g, '').trim();
-  const releaseIntro = `Fedora ${versions.join(', ')} RPMs and SRPMs${process.env.EPEL_VERSION === '10' ? ' plus Enterprise Linux 10 packages' : ''} built from the official WiFiman Desktop ${version} package.`;
+  const releaseIntro = `Fedora ${versions.join(', ')} RPMs and SRPMs${process.env.EPEL_VERSION === '10' ? ' plus Enterprise Linux 10 packages' : ''}${suseTags.length ? ' plus openSUSE packages' : ''} built from the official WiFiman Desktop ${version} package.`;
   const repo = {owner: context.repo.owner, repo: context.repo.repo};
   const tag = `v${version}`;
   let release;
@@ -23,7 +27,7 @@ module.exports = async ({github, context, core}, mode) => {
   } catch (error) {
     if (error.status !== 404) throw error;
   }
-  const coprMarker = `<!-- wifiman-copr-success:${versions.join(',')}${process.env.EPEL_VERSION === '10' ? ',epel10' : ''} -->`;
+  const coprMarker = `<!-- wifiman-copr-success:${versions.join(',')}${process.env.EPEL_VERSION === '10' ? ',epel10' : ''}${suseTags.length ? ',' + [...new Set(suseTags)].sort().join(',') : ''} -->`;
   if (mode === 'copr-success') {
     if (!release) throw new Error('Cannot record Copr success without a release');
     await github.rest.repos.updateRelease({...repo, release_id: release.id,
@@ -55,5 +59,5 @@ module.exports = async ({github, context, core}, mode) => {
       name: file, data: fs.readFileSync(path.join('release-assets', file))});
   }
   await github.rest.repos.updateRelease({...repo, release_id: release.id, draft: false,
-    body: clearCoprMarker(release.body).replace(/^Fedora [\d, ]+ RPMs? and SRPMs?(?: plus Enterprise Linux 10 packages)? built from the official WiFiman Desktop [\d.]+ package\./, releaseIntro)});
+    body: clearCoprMarker(release.body).replace(/^Fedora [\d, ]+ RPMs? and SRPMs?(?: plus Enterprise Linux 10 packages)?(?: plus openSUSE packages)? built from the official WiFiman Desktop [\d.]+ package\./, releaseIntro)});
 };
