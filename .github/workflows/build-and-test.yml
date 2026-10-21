@@ -60,6 +60,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           VERSION: ${{ steps.check.outputs.latest_version }}
+          COPR_CONFIGURED: ${{ secrets.COPR_LOGIN != '' && secrets.COPR_TOKEN != '' }}
         with:
           script: await require('./scripts/release.cjs')({github, context, core}, 'check');
       - name: Report discovery
@@ -68,7 +69,7 @@ jobs:
           VERSION: ${{ steps.check.outputs.latest_version }}
           BUILD_REQUIRED: ${{ steps.release.outputs.build_required }}
         run: |
-          printf '## WiFiman release check\n\nSpec baseline: %s\n\nOfficial version: %s\n\nMissing tested release assets: %s\n' "$CURRENT_VERSION" "$VERSION" "$BUILD_REQUIRED" >> "$GITHUB_STEP_SUMMARY"
+          printf '## WiFiman release check\n\nSpec baseline: %s\n\nOfficial version: %s\n\nBuild or Copr retry needed: %s\n' "$CURRENT_VERSION" "$VERSION" "$BUILD_REQUIRED" >> "$GITHUB_STEP_SUMMARY"
 
   build-and-test:
     timeout-minutes: 90
@@ -80,6 +81,7 @@ jobs:
       contents: write
     env:
       CONTAINER_NAME: wifiman-${{ github.run_id }}-${{ github.run_attempt }}
+      COPR_CONFIGURED: ${{ secrets.COPR_LOGIN != '' && secrets.COPR_TOKEN != '' }}
       VERSION: ${{ needs.check-version.outputs.version }}
       DOWNLOAD_URL: ${{ needs.check-version.outputs.download_url }}
       SHA256: ${{ needs.check-version.outputs.sha256 }}
@@ -110,6 +112,11 @@ jobs:
           name: wifiman-${{ env.VERSION }}-fedora43
           path: release-assets/*.rpm
           if-no-files-found: error
+      - name: Publish tested RPMs
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: actions/github-script@v7
+        with:
+          script: await require('./scripts/release.cjs')({github, context, core}, 'publish');
       - name: Submit to Copr when configured
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
@@ -129,8 +136,8 @@ jobs:
           umask 077
           printf '[copr-cli]\nusername = jeanpereira\nlogin = %s\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' "$COPR_LOGIN" "$COPR_TOKEN" > "$XDG_CONFIG_HOME/copr"
           "$RUNNER_TEMP/copr-venv/bin/copr-cli" --config "$XDG_CONFIG_HOME/copr" build jeanpereira/wifiman release-assets/*.src.rpm
-      - name: Publish tested RPMs
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      - name: Record successful Copr build
+        if: env.COPR_CONFIGURED == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: actions/github-script@v7
         with:
-          script: await require('./scripts/release.cjs')({github, context, core}, 'publish');
+          script: await require('./scripts/release.cjs')({github, context, core}, 'copr-success');

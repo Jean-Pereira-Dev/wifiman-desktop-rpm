@@ -12,12 +12,20 @@ module.exports = async ({github, context, core}, mode) => {
   } catch (error) {
     if (error.status !== 404) throw error;
   }
+  const coprMarker = '<!-- wifiman-copr-success -->';
+  if (mode === 'copr-success') {
+    if (!release) throw new Error('Cannot record Copr success without a release');
+    await github.rest.repos.updateRelease({...repo, release_id: release.id,
+      body: `${(release.body || '').replace(coprMarker, '').trim()}\n\n${coprMarker}`});
+    return;
+  }
   if (mode === 'check') {
     const assets = release ? await github.paginate(github.rest.repos.listReleaseAssets,
       {...repo, release_id: release.id, per_page: 100}) : [];
     const complete = release && !release.draft && !release.prerelease &&
       assets.some(a => a.size > 0 && a.name.startsWith(`wifiman-desktop-${version}-`) && a.name.endsWith('.fc43.x86_64.rpm')) &&
-      assets.some(a => a.size > 0 && a.name.startsWith(`wifiman-desktop-${version}-`) && a.name.endsWith('.src.rpm'));
+      assets.some(a => a.size > 0 && a.name.startsWith(`wifiman-desktop-${version}-`) && a.name.endsWith('.src.rpm')) &&
+      (process.env.COPR_CONFIGURED !== 'true' || (release.body || '').includes(coprMarker));
     core.setOutput('build_required', String(!complete));
     return;
   }
@@ -36,5 +44,6 @@ module.exports = async ({github, context, core}, mode) => {
     await github.rest.repos.uploadReleaseAsset({...repo, release_id: release.id,
       name: file, data: fs.readFileSync(path.join('release-assets', file))});
   }
-  await github.rest.repos.updateRelease({...repo, release_id: release.id, draft: false});
+  await github.rest.repos.updateRelease({...repo, release_id: release.id, draft: false,
+    body: (release.body || '').replace(coprMarker, '').trim()});
 };

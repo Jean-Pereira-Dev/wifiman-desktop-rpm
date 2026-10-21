@@ -52,11 +52,17 @@ publishing releases or submitting to Copr. External PRs use GitHub-hosted
 runners so untrusted changes do not execute on the private runner.
 
 Scheduled runs skip only when the upstream version has a published release
-containing both a nonempty Fedora 43 x86_64 RPM and an SRPM. Missing assets,
-draft releases, and failed uploads can therefore be retried. Pushes and manual
+containing both a nonempty Fedora 43 x86_64 RPM and an SRPM, plus a
+successful Copr marker when Copr is configured. Missing assets, draft
+releases, failed uploads, and failed Copr builds can therefore be retried. Pushes and manual
 runs always build. New releases remain drafts until their assets are uploaded.
 Copr submission is optional (`COPR_LOGIN` and `COPR_TOKEN` repository secrets);
-when configured, the workflow waits for Copr before publishing the release.
+when configured, the workflow waits for the Copr build result and records
+success in the GitHub release metadata. GitHub RPMs are published immediately
+after the Fedora installation tests pass, independently of Copr credentials.
+If Copr fails, the run reports failure and the next daily check retries it,
+even when the GitHub RPM assets already exist. After renewing expired Copr
+credentials in repository secrets, run the workflow manually to retry immediately.
 
 The daily schedule runs at **02:17 UTC** (03:17 in Berlin in winter,
 04:17 in summer). The version-check job makes an empty maintenance commit

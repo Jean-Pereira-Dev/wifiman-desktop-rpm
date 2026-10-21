@@ -41,10 +41,23 @@ test('publish is last; retries replace matching assets', async () => {
     const first = mock(null); await run(first, 'publish');
     assert.equal(first.events[0][0], 'create'); assert.equal(first.events[0][1].draft, true);
     assert.equal(first.events.at(-1)[0], 'publish');
-    const retry = mock({id: 3}, [binary, source]); await run(retry, 'publish');
+    const retry = mock({id: 3, body: 'Notes\n<!-- wifiman-copr-success -->'}, [binary, source]); await run(retry, 'publish');
     assert.deepEqual(retry.events.map(x => x[0]), ['delete', 'upload', 'delete', 'upload', 'publish']);
+    assert.equal(retry.events.at(-1)[1].body, 'Notes');
     const failed = mock(null); failed.github.rest.repos.uploadReleaseAsset = async () => { throw new Error('upload failed'); };
     await assert.rejects(run(failed, 'publish'), /upload failed/);
     assert(!failed.events.some(x => x[0] === 'publish'));
   } finally { process.chdir(previous); fs.rmSync(temp, {recursive:true, force:true}); }
+});
+test('configured Copr must succeed before daily builds can skip', async () => {
+  const marker = '<!-- wifiman-copr-success -->';
+  process.env.COPR_CONFIGURED = 'true';
+  try {
+    const pending = mock({id: 3}, [binary, source]); await run(pending, 'check');
+    assert.deepEqual(pending.events, [['build_required', 'true']]);
+    const done = mock({id: 3, body: marker}, [binary, source]); await run(done, 'check');
+    assert.deepEqual(done.events, [['build_required', 'false']]);
+    const success = mock({id: 3, body: 'Release notes'}); await run(success, 'copr-success');
+    assert.equal(success.events[0][1].body, 'Release notes\n\n' + marker);
+  } finally { delete process.env.COPR_CONFIGURED; }
 });
