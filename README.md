@@ -127,8 +127,8 @@ builds even if the WiFiman version is unchanged.
 Each matrix job builds, installs, validates and removes its RPM in the matching
 Fedora container. All targets must pass before the release is published. Copr
 is then synchronized by adding missing targets while preserving existing
-project targets and enabling `follow_fedora_branching`. One SRPM is submitted
-with an explicit list of stable Fedora chroots and EPEL 10; older/custom/beta targets in
+project targets and enabling `follow_fedora_branching`. Each target's native SRPM is submitted
+to its matching Copr chroot; older/custom/beta targets in
 the project are preserved but not submitted by this workflow. EOL Fedora
 versions stop being tested automatically. If discovery fails or a newly stable
 chroot is unavailable, the workflow fails visibly and retries the next day.

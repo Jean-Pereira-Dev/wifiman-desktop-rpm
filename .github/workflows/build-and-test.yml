@@ -285,12 +285,20 @@ jobs:
           printf '[copr-cli]\nusername = jeanpereira\nlogin = %s\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' "$COPR_LOGIN" "$COPR_TOKEN" > "$XDG_CONFIG_HOME/copr"
           "$RUNNER_TEMP/copr-venv/bin/python" scripts/sync_copr.py --config "$XDG_CONFIG_HOME/copr" --chroots "$COPR_CHROOTS"
           mapfile -t CHROOTS < <(python3 -c 'import json, os; print("\n".join(json.loads(os.environ["COPR_CHROOTS"])))')
-          CHROOT_ARGS=()
-          for CHROOT in "${CHROOTS[@]}"; do CHROOT_ARGS+=(--chroot "$CHROOT"); done
-          # One SRPM is sufficient: Copr rebuilds it independently in each chroot.
-          SRPMS=(release-assets/*.fc"$LATEST_FEDORA".src.rpm)
-          [[ ${#SRPMS[@]} -eq 1 && -f "${SRPMS[0]}" ]]
-          "$RUNNER_TEMP/copr-venv/bin/copr-cli" --config "$XDG_CONFIG_HOME/copr" build "${CHROOT_ARGS[@]}" jeanpereira/wifiman "${SRPMS[0]}"
+          # Submit each target's native SRPM: BuildRequires in the SRPM header
+          # can differ between distributions even when the spec is shared.
+          for CHROOT in "${CHROOTS[@]}"; do
+            case "$CHROOT" in
+              fedora-*-x86_64) DIST="${CHROOT#fedora-}"; DIST="fc${DIST%-x86_64}" ;;
+              epel-10-x86_64) DIST=el10 ;;
+              opensuse-leap-16.0-x86_64) DIST=suse1600 ;;
+              opensuse-tumbleweed-x86_64) DIST=suse1699 ;;
+              *) echo "Unsupported target: $CHROOT" >&2; exit 1 ;;
+            esac
+            SRPMS=(release-assets/*."$DIST".src.rpm)
+            [[ ${#SRPMS[@]} -eq 1 && -f "${SRPMS[0]}" ]]
+            "$RUNNER_TEMP/copr-venv/bin/copr-cli" --config "$XDG_CONFIG_HOME/copr" build --chroot "$CHROOT" jeanpereira/wifiman "${SRPMS[0]}"
+          done
       - name: Record successful Copr build
         if: env.COPR_CONFIGURED == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
