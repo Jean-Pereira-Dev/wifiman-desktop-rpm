@@ -66,17 +66,21 @@ even when the GitHub RPM assets already exist. After renewing expired Copr
 credentials in repository secrets, run the workflow manually to retry immediately.
 
 The daily schedule runs at **02:17 UTC** (03:17 in Berlin in winter,
-04:17 in summer). The version-check job makes an empty maintenance commit
-with `[skip ci]` after 45 days without commits to keep the schedule active.
-It requires the workflow's `contents: write` permission and permission to
-push to the default branch; branch protection must allow that maintenance push.
+04:17 in summer). A separate **Keep scheduled builds active** workflow runs
+weekly on a GitHub-hosted runner, independently of the private RPM build runner.
+It makes an empty maintenance commit after 30 days without commits, well before
+GitHub's 60-day inactivity cutoff. It also re-enables the build workflow if its
+state is specifically `disabled_inactivity`; it leaves `disabled_manually` alone.
+No source files are changed by maintenance commits.
 
-**GitHub can disable schedules after 60 days without repository activity.**
-In Actions, select **Build and Test RPM**, choose **Enable workflow** if shown,
-and then **Run workflow** on the default branch. A cron change alone does not
-prevent future inactivity disabling. The maintenance step prevents this during
-normal scheduled operation; if branch protection blocks it, arrange an external
-authenticated trigger or allow the push.
+The keepalive needs `contents: write` and `actions: write`, and branch rules must
+allow its maintenance commit. The default branch is updated without force;
+concurrent pushes are preserved. GitHub platform outages, runner availability,
+permissions, or disabling the keepalive itself can still prevent execution.
+Both schedules can be disabled manually in Actions; the keepalive respects
+manual disabling of the build workflow. Use its manual Run workflow button to
+verify permissions after changing repository rules.
+
 The checked-in spec is a baseline; each build sets its version and source from
 the validated manifest without committing generated version changes.
 
@@ -85,7 +89,7 @@ Local discovery and regression checks:
 ```sh
 bash scripts/check-version.sh
 python3 -m unittest discover -s tests -v
-node --test tests/release.test.cjs
+node --test tests/*.test.cjs
 ```
 
 Discovery returns 0 on success (including when a new version is available),

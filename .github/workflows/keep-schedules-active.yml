@@ -1,0 +1,27 @@
+name: Keep scheduled builds active
+
+on:
+  schedule:
+    - cron: '41 3 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: keep-schedules-active
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Preserve daily scheduling and respect manual disabling
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: await require('./scripts/keepalive.cjs')({github, context, core});
