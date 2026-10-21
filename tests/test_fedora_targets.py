@@ -53,3 +53,18 @@ class FedoraTargetsTests(unittest.TestCase):
         client.project_proxy.get.return_value = SimpleNamespace(chroot_repos={'fedora-44-x86_64': ''}, follow_fedora_branching=True)
         copr.sync(client, ['fedora-44-x86_64'])
         client.project_proxy.edit.assert_not_called()
+
+    def test_epel_is_required_and_can_be_added(self):
+        with self.assertRaises(ValueError):
+            fedora.discover({'releases': [release('44')]}, ['fedora-44-x86_64'])
+        client = Mock()
+        client.mock_chroot_proxy.get_list.return_value = {'epel-10-x86_64': ''}
+        client.project_proxy.get.return_value = SimpleNamespace(chroot_repos={'fedora-44-x86_64': ''}, follow_fedora_branching=True)
+        copr.sync(client, ['epel-10-x86_64'])
+        client.project_proxy.edit.assert_called_once_with(ownername='jeanpereira', projectname='wifiman',
+            chroots=['epel-10-x86_64', 'fedora-44-x86_64'], follow_fedora_branching=True)
+
+    def test_unvalidated_enterprise_targets_are_rejected(self):
+        for target in ['epel-8-x86_64', 'epel-9-x86_64', 'epel-11-x86_64']:
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                copr.sync(Mock(), [target])

@@ -9,7 +9,7 @@ This repository holds the RPM package source for [wifiman-desktop](https://www.u
 
 > [!NOTE]  
 > This is a wrapper package of the WiFiman Desktop releases for Ubuntu available [here](https://www.ui.com/download/app/wifiman-desktop)
-> and is in no way affliated with or maintained by [Ubiquity Inc](https://ui.com/) for any application support or questions please see
+> and is in no way affiliated with or maintained by [Ubiquiti Inc](https://ui.com/) for any application support or questions please see
 > [here](https://help.ui.com/hc/en-us).
 
 
@@ -60,7 +60,7 @@ runs always build. New releases remain drafts until their assets are uploaded.
 Copr submission is optional (`COPR_LOGIN` and `COPR_TOKEN` repository secrets);
 when configured, the workflow waits for the Copr build result and records
 success in the GitHub release metadata. GitHub RPMs are published immediately
-after the Fedora installation tests pass, independently of Copr credentials.
+after the Fedora and Enterprise Linux installation tests pass, independently of Copr credentials.
 If Copr fails, the run reports failure and the next daily check retries it,
 even when the GitHub RPM assets already exist. After renewing expired Copr
 credentials in repository secrets, run the workflow manually to retry immediately.
@@ -128,7 +128,7 @@ Each matrix job builds, installs, validates and removes its RPM in the matching
 Fedora container. All targets must pass before the release is published. Copr
 is then synchronized by adding missing targets while preserving existing
 project targets and enabling `follow_fedora_branching`. One SRPM is submitted
-with an explicit list of stable Fedora chroots; older/custom/beta targets in
+with an explicit list of stable Fedora chroots and EPEL 10; older/custom/beta targets in
 the project are preserved but not submitted by this workflow. EOL Fedora
 versions stop being tested automatically. If discovery fails or a newly stable
 chroot is unavailable, the workflow fails visibly and retries the next day.

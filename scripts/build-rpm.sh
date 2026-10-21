@@ -62,6 +62,23 @@ test -f /usr/lib/wifiman-desktop/.env
 
 desktop-file-validate /usr/share/applications/wifiman-desktop.desktop
 
+# A package can install yet still miss a shared library loaded by its executable.
+for executable in /usr/bin/wifiman-desktop /usr/lib/wifiman-desktop/wifiman-desktopd; do
+  if [ -f "$executable" ]; then
+    dependencies=$(ldd "$executable" 2>&1) || {
+      # Statically linked daemons have no dynamic dependencies.
+      if [[ "$dependencies" != *"not a dynamic executable"* && "$dependencies" != *"statically linked"* ]]; then
+        printf '%s\n' "$dependencies"
+        exit 1
+      fi
+    }
+    if [[ "$dependencies" == *"not found"* ]]; then
+      printf 'Unresolved libraries for %s:\n%s\n' "$executable" "$dependencies"
+      exit 1
+    fi
+  fi
+done
+
 echo "✓ Installation test PASSED"
 
 echo "=== Testing uninstallation ==="
