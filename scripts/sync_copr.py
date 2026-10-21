@@ -24,7 +24,7 @@ def sync(client, desired):
     if target in desired:
         config = client.project_chroot_proxy.get(
             ownername='jeanpereira', projectname='wifiman', chrootname=target)
-        if config.bootstrap != 'on':
+        if getattr(config, 'bootstrap', None) != 'on':
             client.project_chroot_proxy.edit(
                 ownername='jeanpereira', projectname='wifiman',
                 chrootname=target, bootstrap='on')
